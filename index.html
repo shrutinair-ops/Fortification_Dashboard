@@ -1,0 +1,2251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fortification Program Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --purple:#6c63ff;--purple-lt:#eeeeff;--purple-dk:#4a43c9;
+  --green:#22c07e;--green-lt:#e8faf3;
+  --amber:#f5a623;--amber-lt:#fff8ec;
+  --red:#e85c5c;--red-lt:#fff3f3;
+  --blue:#3b82f6;--blue-lt:#eff6ff;
+  --gray:#64748b;--gray-lt:#f8fafc;
+  --border:#e8ecf4;--bg:#f3f5fb;
+  --text:#1e2235;--muted:#8892a4;--faint:#b8c0cc;
+  --card:#ffffff;
+  --radius:12px;--radius-sm:8px;
+  --shadow:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 4px 16px rgba(0,0,0,.08);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);font-size:13.5px;line-height:1.55}
+
+/* TOP BAR */
+.topbar{background:var(--card);border-bottom:1px solid var(--border);padding:10px 28px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:sticky;top:0;z-index:300;box-shadow:var(--shadow)}
+.filter-icon{color:var(--purple);opacity:.7}
+select{border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 26px 6px 10px;font-size:12.5px;color:var(--text);background:var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%238892a4' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 7px center;-webkit-appearance:none;cursor:pointer;transition:border-color .15s}
+select:focus{outline:none;border-color:var(--purple);box-shadow:0 0 0 3px rgba(108,99,255,.12)}
+.refresh-btn{margin-left:auto;padding:7px 15px;border:1.5px solid var(--purple);border-radius:var(--radius-sm);color:var(--purple);background:var(--card);font-size:12.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .15s;white-space:nowrap}
+.refresh-btn:hover{background:var(--purple);color:#fff}
+.refresh-btn.loading{opacity:.55;pointer-events:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(108,99,255,.25);border-top-color:var(--purple);border-radius:50%;animation:spin .55s linear infinite;vertical-align:-2px}
+
+/* TABS */
+.tabs{background:var(--card);border-bottom:1px solid var(--border);padding:0 28px;display:flex;gap:0;overflow-x:auto;position:sticky;top:60px;z-index:200;box-shadow:0 2px 6px rgba(0,0,0,.06)}
+.tab{padding:13px 18px;cursor:pointer;font-size:13px;font-weight:500;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap;transition:color .15s;margin-bottom:-1px;user-select:none}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--purple);border-bottom-color:var(--purple);font-weight:600}
+
+/* PAGE LAYOUT */
+.page{display:none;padding:24px 28px;max-width:1300px;margin:0 auto}
+.page.active{display:block}
+.pg-header{margin-bottom:20px}
+h1.pg-title{font-size:20px;font-weight:700;color:var(--text);margin-bottom:3px}
+.pg-sub{font-size:12.5px;color:var(--muted)}
+
+/* CARDS */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card-head{margin-bottom:14px}
+.card-title{font-size:14px;font-weight:700;color:var(--text);display:flex;justify-content:space-between;align-items:center}
+.card-sub{font-size:12px;color:var(--faint);margin-top:2px}
+.card-link{font-size:11.5px;color:var(--purple);cursor:pointer;font-weight:500;white-space:nowrap}
+.card-link:hover{text-decoration:underline}
+
+/* KPI GRID */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;position:relative;box-shadow:var(--shadow);transition:box-shadow .15s}
+.kpi:hover{box-shadow:var(--shadow-md)}
+.kpi-icon{position:absolute;top:14px;right:14px;font-size:20px;opacity:.22}
+.kpi-lbl{font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;letter-spacing:.3px;text-transform:uppercase}
+.kpi-val{font-size:28px;font-weight:700;color:var(--text);line-height:1;letter-spacing:-.5px}
+.kpi-sub{font-size:11px;color:var(--faint);margin-top:5px}
+.kpi.t-purple{border-top:3px solid var(--purple)}
+.kpi.t-green{border-top:3px solid var(--green)}
+.kpi.t-amber{border-top:3px solid var(--amber)}
+.kpi.t-red{border-top:3px solid var(--red)}
+.kpi.t-blue{border-top:3px solid var(--blue)}
+.kpi.t-gray{border-top:3px solid var(--gray)}
+
+/* RANGE TILES */
+.range-trio{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px}
+.rtile{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+.rtile.t-amber{border-top:3px solid var(--amber)}
+.rtile.t-green{border-top:3px solid var(--green)}
+.rtile.t-red{border-top:3px solid var(--red)}
+.rtile-lbl{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px}
+.rtile-val{font-size:30px;font-weight:800;letter-spacing:-.5px}
+.rtile.t-amber .rtile-val{color:#c97a00}
+.rtile.t-green .rtile-val{color:#15905a}
+.rtile.t-red .rtile-val{color:#c94040}
+.rtile-pct{font-size:12px;color:var(--faint);margin-top:4px}
+.rtile-sub{font-size:11px;color:var(--muted);margin-top:6px}
+
+/* GRID LAYOUTS */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px}
+.g2-3{display:grid;grid-template-columns:2fr 3fr;gap:16px}
+.g3-2{display:grid;grid-template-columns:3fr 2fr;gap:16px}
+
+/* INSIGHT BOXES */
+.insight{border-radius:var(--radius-sm);padding:11px 15px;margin-bottom:9px;display:flex;gap:11px;align-items:flex-start;border:1px solid transparent}
+.insight.green{background:#f0fdf6;border-color:#b7f0d5}
+.insight.blue{background:#eff6ff;border-color:#bdd7fd}
+.insight.amber{background:var(--amber-lt);border-color:#fcd98a}
+.insight.red{background:var(--red-lt);border-color:#ffc0c0}
+.insight.purple{background:var(--purple-lt);border-color:#c5c1ff}
+.insight-ic{font-size:16px;flex-shrink:0;margin-top:1px}
+.insight-title{font-size:12.5px;font-weight:700;margin-bottom:2px}
+.insight-body{font-size:12px;color:#555;line-height:1.55}
+.insight.green .insight-title{color:#0a6e40}
+.insight.blue .insight-title{color:#1a4fc4}
+.insight.amber .insight-title{color:#8a5f00}
+.insight.red .insight-title{color:#b02020}
+.insight.purple .insight-title{color:#4a43c9}
+
+/* COMPARE CARDS */
+.cmp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.cmp-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow)}
+.cmp-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:8px;flex-shrink:0}
+.cmp-title{font-size:15px;font-weight:700;display:flex;align-items:center}
+.cmp-sub{font-size:11.5px;color:var(--faint);margin:3px 0 14px}
+.cmp-metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cmp-m{text-align:center;padding:10px;background:var(--gray-lt);border-radius:var(--radius-sm)}
+.cmp-m-lbl{font-size:10.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
+.cmp-m-val{font-size:20px;font-weight:700;color:var(--text)}
+.cmp-m-val.purple{color:var(--purple)}
+
+/* HEAD-TO-HEAD */
+.hth-wrap{border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
+.hth-row{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;align-items:center;padding:11px 14px;border-bottom:1px solid #f2f2f8;font-size:13px}
+.hth-row:last-child{border-bottom:none}
+.hth-head{background:var(--gray-lt);font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.4px;text-transform:uppercase}
+.delta-pos{color:#15905a;font-size:11.5px;font-weight:600}
+.delta-neg{color:#c94040;font-size:11.5px;font-weight:600}
+.delta-neu{color:var(--faint);font-size:11.5px}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.2px;white-space:nowrap}
+.bd-below{background:#fff3e0;color:#b36000}
+.bd-within{background:#e4f9ee;color:#0b7444}
+.bd-above{background:var(--red-lt);color:#b02020}
+.bd-dec{background:#fff3e0;color:#b36000}
+.bd-imp{background:#e4f9ee;color:#0b7444}
+.bd-stb{background:#f4f4f8;color:#555}
+.bd-hi{background:var(--red-lt);color:#b02020}
+.bd-vhi{background:#ffd0d0;color:#8c1c1c}
+.bd-med{background:var(--amber-lt);color:#8a5f00}
+.bd-low{background:#f4f4f8;color:#555;border:1px solid #dde}
+.bd-purple{background:var(--purple-lt);color:var(--purple-dk)}
+
+/* PROGRESS BARS */
+.prog-row{margin:8px 0}
+.prog-top{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px;color:var(--text)}
+.prog-bar{height:7px;border-radius:4px;background:#eff0f5;overflow:hidden}
+.prog-fill{height:100%;border-radius:4px;transition:width .4s}
+
+/* TABLES */
+table.dt{width:100%;border-collapse:collapse;font-size:12.5px}
+.dt thead th{text-align:left;padding:9px 12px;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;border-bottom:1.5px solid var(--border);white-space:nowrap;background:var(--gray-lt)}
+.dt tbody tr{border-bottom:1px solid #f4f5f9;transition:background .1s}
+.dt tbody tr:hover{background:#fafbff}
+.dt tbody td{padding:9px 12px;color:var(--text);vertical-align:middle}
+
+/* SECTION LABELS */
+.sec-lbl{font-size:10.5px;font-weight:700;color:var(--faint);letter-spacing:.8px;text-transform:uppercase;margin:16px 0 9px;padding-bottom:5px;border-bottom:1px solid var(--border)}
+
+/* CHARTS */
+.ch-wrap{position:relative;width:100%}
+.ch-note{font-size:11.5px;color:var(--muted);text-align:center;margin-top:8px;font-style:italic}
+.ch-legend{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:10px;font-size:12px;color:var(--muted)}
+.ch-leg-item{display:flex;align-items:center;gap:5px}
+.ch-leg-ln{width:20px;height:3px;border-radius:2px;flex-shrink:0}
+
+/* PIPELINE BADGE ROW */
+.pipeline-row{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.pipe-tile{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 20px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);min-width:140px}
+.pipe-icon{font-size:22px}
+.pipe-val{font-size:20px;font-weight:700}
+.pipe-lbl{font-size:11px;color:var(--muted);font-weight:500}
+
+/* MISC */
+.no-data{text-align:center;padding:24px;color:var(--faint);font-size:13px;font-style:italic}
+.tag-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.highlight-box{border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:12px}
+.highlight-box.green{background:#f0fdf6;border:1px solid #b7f0d5}
+.highlight-box.purple{background:var(--purple-lt);border:1px solid #c5c1ff}
+.two-stat{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.two-stat-item{text-align:center;padding:10px;border-radius:var(--radius-sm);background:var(--gray-lt)}
+.two-stat-val{font-size:22px;font-weight:700}
+.two-stat-lbl{font-size:11px;color:var(--muted);margin-top:2px}
+
+@media(max-width:720px){.g2,.cmp-grid,.range-trio,.g3,.g2-3,.g3-2{grid-template-columns:1fr}.kpi-row{grid-template-columns:1fr 1fr}.topbar{gap:6px}}
+
+/* FILTER BAR */
+.filter-group{display:flex;flex-direction:column;gap:2px;position:relative}
+.filter-label{font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.4px;padding-left:2px}
+.filter-sep{width:1px;background:#e8ecf4;margin:0 4px;align-self:stretch}
+.ms-wrap{position:relative;min-width:110px}
+.ms-box{border:1px solid #e8ecf4;border-radius:8px;padding:6px 26px 6px 10px;font-size:12.5px;color:#333;background:#fff;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;position:relative;user-select:none;transition:border-color .15s}
+.ms-box:hover{border-color:#6c63ff}
+.ms-arrow{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:9px;color:#aaa;pointer-events:none}
+.ms-box.active{border-color:#6c63ff;box-shadow:0 0 0 3px rgba(108,99,255,.1)}
+.ms-drop{position:absolute;top:calc(100% + 4px);left:0;z-index:500;background:#fff;border:1px solid #e8ecf4;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:200px;max-width:280px;display:none;overflow:hidden}
+.ms-drop.open{display:block}
+.ms-search{width:100%;border:none;border-bottom:1px solid #f0f0f5;padding:9px 12px;font-size:12.5px;outline:none;color:#333}
+.ms-opts{max-height:220px;overflow-y:auto}
+.ms-opt{display:flex;align-items:center;gap:9px;padding:8px 12px;cursor:pointer;font-size:12.5px;color:#333;transition:background .1s}
+.ms-opt:hover{background:#f5f5ff}
+.ms-opt input[type=checkbox]{width:14px;height:14px;accent-color:#6c63ff;flex-shrink:0;cursor:pointer}
+.ms-opt.select-all{font-weight:600;border-bottom:1px solid #f0f0f5;color:#6c63ff}
+.ms-count{display:inline-block;background:#6c63ff;color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:4px}
+.ms-footer{padding:8px 12px;border-top:1px solid #f0f0f5;display:flex;gap:8px}
+.ms-clear{font-size:11.5px;color:#e85c5c;cursor:pointer;font-weight:600}
+.ms-clear:hover{text-decoration:underline}
+
+
+/* Range tiles */
+.range-trio{display:flex;gap:12px;margin-bottom:16px}
+.range-tile{flex:1;border-radius:12px;padding:16px 18px;border:1px solid #e8ecf4}
+.r-below{background:#fff8ec;border-color:#f5a623}
+.r-within{background:#f0fdf6;border-color:#22c07e}
+.r-above{background:#fff3f3;border-color:#e85c5c}
+.rt-val{font-size:28px;font-weight:800;line-height:1}
+.rt-lbl{font-size:13px;font-weight:600;margin-top:4px}
+.rt-sub{font-size:11.5px;color:#888;margin-top:2px}
+.r-below .rt-val{color:#f5a623}
+.r-within .rt-val{color:#22c07e}
+.r-above .rt-val{color:#e85c5c}
+/* RCA */
+.rca-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12.5px}
+.rca-lbl{width:120px;flex-shrink:0;color:#555}
+.rca-bar-wrap{flex:1;height:8px;background:#f0f0f5;border-radius:4px;overflow:hidden}
+.rca-bar{height:100%;border-radius:4px;min-width:2px;transition:width .3s}
+.rca-val{width:28px;text-align:right;font-weight:700;font-size:12px}
+.rca-pct{width:44px;color:#aaa;font-size:11px;text-align:right}
+/* Visit category */
+.vc-wrap{display:flex;gap:12px;flex-direction:column}
+.vc-cards{display:flex;gap:12px;margin-bottom:8px}
+.vc-card{flex:1;background:#f8f9fc;border-radius:10px;padding:14px 16px;border:1px solid #e8ecf4}
+.vc-val{font-size:26px;font-weight:800;color:#6c63ff}
+.vc-lbl{font-size:12.5px;font-weight:600;margin-top:2px}
+.vc-sub{font-size:11.5px;color:#888;margin-top:2px}
+.vc-diff{font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:8px;text-align:center}
+.vc-diff.pos{background:#f0fdf6;color:#22c07e}
+.vc-diff.neg{background:#fff3f3;color:#e85c5c}
+
+
+/* Visit Category comparison cards */
+.cmp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:600px){.cmp-grid{grid-template-columns:1fr}}
+.vc-group-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.vc-group-head{font-size:14px;font-weight:700;padding:12px 18px;display:flex;align-items:center;gap:10px}
+.nm-head{background:#eeeeff;color:#4a43c9;border-bottom:2px solid #6c63ff}
+.mo-head{background:#e8faf3;color:#0a6e40;border-bottom:2px solid #22c07e}
+.vc-group-count{font-size:28px;font-weight:800;padding:10px 18px 4px}
+.vc-group-count.nm{color:#6c63ff}
+.vc-group-count.mo{color:#22c07e}
+.vc-metrics{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#f0f0f5;border-top:1px solid #f0f0f5}
+.vc-metric{background:var(--card);padding:12px 16px}
+.vc-metric-lbl{font-size:10.5px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
+.vc-metric-val{font-size:18px;font-weight:800;color:#1a1a2e;line-height:1.1}
+.vc-metric-val.green{color:#22c07e}
+.vc-metric-val.amber{color:#f5a623}
+.vc-metric-val.purple{color:#6c63ff}
+.vc-metric-sub{font-size:10.5px;color:#aaa;margin-top:2px}
+
+</style>
+</head>
+<body>
+<div id="app-loading" style="display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:16px">
+  <div style="width:36px;height:36px;border:3px solid #e8ecf4;border-top-color:#6c63ff;border-radius:50%;animation:spin 0.8s linear infinite"></div>
+  <div style="color:#888;font-size:13px;font-weight:600">Loading dashboard data...</div>
+</div>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+<div id="app-root" style="display:none">
+
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="filter-group">
+    <span class="filter-label">From</span>
+    <select id="f-from" onchange="applyFilters()" style="min-width:110px"></select>
+  </div>
+  <div class="filter-group">
+    <span class="filter-label">To</span>
+    <select id="f-to" onchange="applyFilters()" style="min-width:110px"></select>
+  </div>
+  <div class="filter-sep"></div>
+  <div class="filter-group ms-wrap" id="wrap-state">
+    <span class="filter-label">State</span>
+    <div class="ms-box" id="ms-state" onclick="toggleDrop('state')">All States <span class="ms-arrow">&#9660;</span></div>
+    <div class="ms-drop" id="drop-state"></div>
+  </div>
+  <div class="filter-group ms-wrap" id="wrap-cluster">
+    <span class="filter-label">Cluster</span>
+    <div class="ms-box" id="ms-cluster" onclick="toggleDrop('cluster')">All Clusters <span class="ms-arrow">&#9660;</span></div>
+    <div class="ms-drop" id="drop-cluster"></div>
+  </div>
+  <div class="filter-group ms-wrap" id="wrap-mill">
+    <span class="filter-label">Mill</span>
+    <div class="ms-box" id="ms-mill" onclick="toggleDrop('mill')">All Mills <span class="ms-arrow">&#9660;</span></div>
+    <div class="ms-drop" id="drop-mill"></div>
+  </div>
+  <div class="filter-group ms-wrap" id="wrap-age">
+    <span class="filter-label">Launch Age</span>
+    <div class="ms-box" id="ms-age" onclick="toggleDrop('age')">All Ages <span class="ms-arrow">&#9660;</span></div>
+    <div class="ms-drop" id="drop-age"></div>
+  </div>
+  <div class="filter-group ms-wrap" id="wrap-cap">
+    <span class="filter-label">Capacity</span>
+    <div class="ms-box" id="ms-cap" onclick="toggleDrop('cap')">All Capacities <span class="ms-arrow">&#9660;</span></div>
+    <div class="ms-drop" id="drop-cap"></div>
+  </div>
+  <div class="filter-group">
+    <span class="filter-label">Launched By</span>
+    <select id="f-launch-cutoff" onchange="applyFilters()" style="min-width:140px"></select>
+  </div>
+  <div class="filter-group ms-wrap" id="wrap-nqo">
+    <span class="filter-label">NQO</span>
+    <div class="ms-box" id="ms-nqo" onclick="toggleDrop('nqo')">All NQOs <span class="ms-arrow">&#9660;</span></div>
+    <div class="ms-drop" id="drop-nqo"></div>
+  </div>
+  <button class="refresh-btn" onclick="refreshData()" id="refresh-btn">&#8635; Refresh</button>
+</div></div>
+
+<!-- TABS -->
+<div class="tabs" role="tablist">
+  <div class="tab active" role="tab" onclick="switchTab(0)">Program Overview</div>
+  <div class="tab" role="tab" onclick="switchTab(1)">Production Trends</div>
+  <div class="tab" role="tab" onclick="switchTab(2)">iCheck Trends</div>
+  <div class="tab" role="tab" onclick="switchTab(3)">iCheck Drivers</div>
+  <div class="tab" role="tab" onclick="switchTab(4)">Visit Category</div>
+</div>
+
+<!-- ==================== TAB 0: OVERVIEW ==================== -->
+<div class="page active" id="page-0" role="tabpanel">
+  <div class="pg-header">
+    <h1 class="pg-title">Program Overview</h1>
+    <div class="pg-sub">Key performance metrics for the selected period and region. Data from <b>database</b> tab. Filters apply to all calculations except pipeline tiles.</div>
+  </div>
+  <!-- Pipeline -->
+  <div class="pipeline-row" id="ov-pipeline"></div>
+  <!-- KPIs -->
+  <div class="kpi-row" id="ov-kpis"></div>
+  <!-- Range -->
+  <div class="range-trio" id="ov-range"></div>
+  <!-- Bottom two-col -->
+  <div class="g2">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Drivers of Out-of-Range Results <span class="card-link" onclick="switchTab(3)">Full analysis →</span></div>
+        <div class="card-sub">Root causes identified among out-of-range iCheck records</div>
+      </div>
+      <div class="sec-lbl">Root cause (RCA) — Yes counts</div>
+      <div id="ov-rca"></div>
+      <div class="sec-lbl" style="margin-top:16px">Strongest factor</div>
+      <div id="ov-rca-top"></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Visit Category Split <span class="card-link" onclick="switchTab(4)">Full analysis →</span></div>
+        <div class="card-sub">Quality stability by visit oversight category</div>
+      </div>
+      <div id="ov-visit"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Monthly Production (MT)</div>
+      <div class="card-sub">Total fortified atta production across all mills in selected period</div>
+    </div>
+    <div class="ch-wrap" style="height:210px"><canvas id="ov-chart" role="img" aria-label="Monthly production trend chart"></canvas></div>
+  </div>
+</div>
+
+<!-- ==================== TAB 1: PRODUCTION ==================== -->
+<div class="page" id="page-1" role="tabpanel">
+  <div class="pg-header">
+    <h1 class="pg-title">Production Trends</h1>
+    <div class="pg-sub">Monthly fortified atta production volumes — latest month on the right.</div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">Key Insights</div><div class="card-sub">Automatically derived from production data for the selected period and filters.</div></div>
+    <div id="prod-insights"></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">Production Volume Over Time (MT)</div></div>
+    <div class="ch-wrap" style="height:250px"><canvas id="prod-chart" role="img" aria-label="Production over time line chart"></canvas></div>
+    <div class="ch-note" id="prod-note"></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">Seasonal Production Pattern</div><div class="card-sub">Monthly production by year — compare the same month across different years to identify seasonal trends</div></div>
+    <div class="ch-legend" id="season-legend"></div>
+    <div class="ch-wrap" style="height:280px"><canvas id="season-chart" role="img" aria-label="Seasonality chart"></canvas></div>
+    <div style="font-size:12px;color:var(--muted);text-align:center;margin-top:8px" id="season-note">Note: 2022 starts from June, 2026 data available through April only.</div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Production Action Flags</div>
+      <div class="card-sub">Current month production vs Avg of prior 3 months (from sheet's Avg Production Last 3 Months column). Select a month below.</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <span style="font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.4px">Current Month</span>
+        <select id="pf-month" onchange="renderProdFlags()" style="font-size:12px;padding:5px 22px 5px 8px;border-radius:6px;border:1px solid var(--border);font-weight:600"></select>
+      </div>
+      <select id="pf-status" onchange="renderProdFlags()" style="font-size:12px;padding:5px 22px 5px 8px;border-radius:6px;border:1px solid var(--border)">
+        <option value="">All Statuses</option>
+        <option value="Severe Decline">Severe Decline</option>
+        <option value="Declining">Declining</option>
+        <option value="Stable">Stable</option>
+        <option value="Growing">Growing</option>
+      </select>
+      <select id="pf-state" onchange="renderProdFlags()" style="font-size:12px;padding:5px 22px 5px 8px;border-radius:6px;border:1px solid var(--border)"><option value="">All States</option></select>
+      <input id="pf-search" oninput="renderProdFlags()" placeholder="Search mill name..." style="font-size:12px;padding:5px 10px;border-radius:6px;border:1px solid var(--border);min-width:160px">
+      <span id="pf-count" style="font-size:12px;color:var(--muted);margin-left:4px"></span>
+    </div>
+    <div style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:8px"><div id="prod-flags"></div></div>
+  </div>
+</div>
+
+<!-- ==================== TAB 2: iCHECK TRENDS ==================== -->
+<div class="page" id="page-2" role="tabpanel">
+  <div class="pg-header">
+    <h1 class="pg-title">iCheck Trends</h1>
+    <div class="pg-sub">Quality compliance over time — target range <b>14–21.25 mg/kg</b>. Zeros treated as no data.</div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">Key Insights</div><div class="card-sub">Automatically derived from iCheck data for the selected period and filters.</div></div>
+    <div id="ich-insights"></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">% Within / Below / Above Range Over Time</div></div>
+    <div class="ch-legend">
+      <span class="ch-leg-item"><span class="ch-leg-ln" style="background:var(--green)"></span>Within range (14–21.25)</span>
+      <span class="ch-leg-item"><span class="ch-leg-ln" style="background:var(--amber)"></span>Below range (&lt;14)</span>
+      <span class="ch-leg-item"><span class="ch-leg-ln" style="background:var(--red)"></span>Above range (&gt;21.25)</span>
+    </div>
+    <div class="ch-wrap" style="height:260px"><canvas id="ich-range-chart" role="img" aria-label="iCheck range percentages over time"></canvas></div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Average iCheck Score Over Time</div><div class="card-sub">Shaded band = target range 14–21.25 mg/kg</div><div id="ich-trend-note" style="font-size:11.5px;color:#888;margin-top:3px"></div></div>
+      <div class="ch-wrap" style="height:220px"><canvas id="ich-avg-chart" role="img" aria-label="Average iCheck over time"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">iCheck Score Distribution</div><div class="card-sub">All non-zero records in selected period</div></div>
+      <div id="ich-dist-legend"></div><div class="ch-wrap" style="height:220px"><canvas id="ich-dist-chart" role="img" aria-label="iCheck distribution histogram"></canvas></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">iCheck Action Flags <span style="font-size:11.5px;color:var(--muted);font-weight:400">(all 214 mills, independent of global filters)</span></div>
+      <div class="card-sub">Every launched mill with iCheck status based on most recent reported value</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+      <select id="if-status" onchange="renderIchFlags()" style="font-size:12px;padding:5px 22px 5px 8px;border-radius:6px;border:1px solid var(--border)">
+        <option value="">All Statuses</option>
+        <option value="Within Range">Within Range</option>
+        <option value="Below Range">Below Range</option>
+        <option value="21.26-28">21.26-28</option>
+        <option value="Above 28">Above 28</option>
+        <option value="No Data">No Data</option>
+      </select>
+      <select id="if-state" onchange="renderIchFlags()" style="font-size:12px;padding:5px 22px 5px 8px;border-radius:6px;border:1px solid var(--border)"><option value="">All States</option></select>
+      <select id="if-streak" onchange="renderIchFlags()" style="font-size:12px;padding:5px 22px 5px 8px;border-radius:6px;border:1px solid var(--border)">
+        <option value="">Any streak</option>
+        <option value="1">1+ month OOR</option>
+        <option value="2">2+ months OOR</option>
+        <option value="3">3+ months OOR</option>
+      </select>
+      <input id="if-search" oninput="renderIchFlags()" placeholder="Search mill name..." style="font-size:12px;padding:5px 10px;border-radius:6px;border:1px solid var(--border);min-width:160px">
+      <span id="if-count" style="font-size:12px;color:var(--muted);margin-left:4px"></span>
+    </div>
+    <div style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:8px"><div id="ich-flags"></div></div>
+  </div>
+</div>
+
+<!-- ==================== TAB 3: DRIVERS ==================== -->
+<div class="page" id="page-3" role="tabpanel">
+  <div class="pg-header">
+    <h1 class="pg-title">Driver Analysis</h1>
+    <div class="pg-sub">Root causes and factors driving out-of-range iCheck performance.</div>
+  </div>
+  <div class="card" style="background:#f0fdf6;border-color:#b7f0d5;box-shadow:none">
+    <div style="font-size:13px;font-weight:700;color:#0a6e40;margin-bottom:5px">Key Insight</div>
+    <div id="driver-insight" style="font-size:13px;color:#1c5c36;line-height:1.7"></div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">RCA Breakdown</div><div class="card-sub">Count of "Yes" per root cause among out-of-range records</div></div>
+      <div class="ch-wrap" id="rca-wrap" style="height:270px"><canvas id="rca-chart" role="img" aria-label="RCA breakdown horizontal bar chart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Factor Association</div><div class="card-sub">Factors most strongly correlated with quality issues</div></div>
+      <div id="factor-assoc"></div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">iCheck by Launch Age</div><div class="card-sub">In-range % (bars) and avg score (line) by mill maturity</div></div>
+      <div class="ch-wrap" style="height:230px"><canvas id="age-chart" role="img" aria-label="iCheck by launch age"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">iCheck by Mill Capacity</div><div class="card-sub">In-range % per capacity tier — do larger mills perform better?</div></div>
+      <div class="ch-wrap" style="height:230px"><canvas id="cap-chart" role="img" aria-label="iCheck by mill capacity"></canvas></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <div class="card-head">
+      <div class="card-title">Quality Officer Mills' Performance</div>
+      <div class="card-sub">Within-range % per Quality Officer (min 5 records). Sorted best to worst.</div>
+    </div>
+    <div style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+      <div id="qo-table"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== TAB 4: VISIT CATEGORY ==================== -->
+<div class="page" id="page-4" role="tabpanel">
+  <div class="pg-header">
+    <h1 class="pg-title">Visit Category Analysis</h1>
+    <div class="pg-sub">Comparing stability of Non-Monthly vs Monthly visit mills across quality and production indicators.</div>
+  </div>
+  <div class="card" id="vc-insight-card">
+    <div class="card-head"><div class="card-title">Key Insights</div><div class="card-sub">Automatically derived for the selected period and filters.</div></div>
+    <div id="vc-insight"></div>
+  </div>
+  <div class="cmp-grid" id="vc-cards"></div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">Head-to-Head Stability Comparison</div><div class="card-sub">Delta shown relative to Monthly Visit baseline.</div></div>
+    <div class="hth-wrap" id="hth"></div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Quality Trend — Within-Range % Over Time</div><div class="card-sub">Month-by-month within-range rate per visit category</div></div>
+      <div class="ch-legend">
+        <span class="ch-leg-item"><span class="ch-leg-ln" style="background:var(--purple)"></span>Non-Monthly</span>
+        <span class="ch-leg-item"><span class="ch-leg-ln" style="background:var(--green)"></span>Monthly</span>
+      </div>
+      <div class="ch-wrap" style="height:230px"><canvas id="vc-chart" role="img" aria-label="Visit category quality trend"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Avg Production — Non-Monthly vs Monthly</div><div class="card-sub">Average production per mill per month</div></div>
+      <div class="ch-legend">
+        <span class="ch-leg-item"><span class="ch-leg-ln" style="background:var(--purple)"></span>Non-Monthly</span>
+        <span class="ch-leg-item"><span class="ch-leg-ln" style="background:var(--green)"></span>Monthly</span>
+      </div>
+      <div class="ch-wrap" style="height:230px"><canvas id="vc-prod-chart" role="img" aria-label="Production comparison chart"></canvas></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Reversion Analysis <span style="font-size:11.5px;color:var(--muted);font-weight:400">(58 events across 43 mills, independent of global filters)</span></div>
+      <div class="card-sub">Mills that reverted from Non-Monthly back to Monthly oversight, with inferred trigger from iCheck and production data</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+      <select id="rv-reason" onchange="renderReversionTable()" style="font-size:12px;padding:5px 22px 5px 8px;border-radius:6px;border:1px solid var(--border)"><option value="">All Reasons</option><option value="iCheck OOR">iCheck OOR</option><option value="declining">Production Declining</option><option value="surge">Production Surge</option><option value="No clear signal">No Clear Signal</option></select>
+      <select id="rv-state" onchange="renderReversionTable()" style="font-size:12px;padding:5px 22px 5px 8px;border-radius:6px;border:1px solid #e8ecf4"><option value="">All States</option></select>
+      <input id="rv-search" oninput="renderReversionTable()" placeholder="Search mill name..." style="font-size:12px;padding:5px 10px;border-radius:6px;border:1px solid #e8ecf4;min-width:160px">
+      <span id="rv-count" style="font-size:12px;color:#8892a4"></span>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px" id="rv-summary-chips"></div>
+    <div style="max-height:460px;overflow-y:auto;border:1px solid #e8ecf4;border-radius:8px">
+      <div id="reversion-body"></div>
+    </div>
+  </div>
+</div>
+
+</div>
+</div>
+<script>
+const APPS_URL='https://script.google.com/macros/s/AKfycbxKOUTx7ljQz8H0DaxD_wp6hzDp-8jhfyKI0YdqXKH4gnJWNGzvZc5n57tDpPmvNa1njg/exec';
+let EMBEDDED=null,REVERSIONS=null,ALL_FLAGS=null;
+
+function showDataLoadError(msg){
+  var el=document.getElementById('app-loading');
+  if(el){
+    el.innerHTML='<div style="text-align:center;padding:60px 20px;color:#888">'+
+      '<div style="font-size:32px;margin-bottom:12px">\u26a0\ufe0f<\/div>'+
+      '<div style="font-size:15px;font-weight:600;color:#444;margin-bottom:6px">Could not load dashboard data<\/div>'+
+      '<div style="font-size:13px;max-width:420px;margin:0 auto">'+msg+'<\/div>'+
+      '<button onclick="location.reload()" style="margin-top:16px;padding:8px 20px;background:#6c63ff;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Retry<\/button>'+
+    '<\/div>';
+  }
+}
+
+const F={MONTH:0,MILL:1,STATE:2,CLUSTER:3,CAP:4,AGE:5,ICHECK:6,ICHS:7,PROD:8,PDEV:9,NM:10,RCA:11,BENE:12,AVG3M:13,QO:14,PO:15,LAUNCH_M:16,ANN_BM:17};
+const RCA_LABELS=['Human/Ops','Equipment','Microfeeder','Sampling','Premix','No Issue'];
+const RCA_COLORS=['#e85c5c','#5b8cff','#f5a623','#22c07e','#a78bfa','#94a3b8'];
+const ICH_MIN=14,ICH_MAX=21.25;
+const AGE_LABELS=['0-6 months','6-12 months','12-24 months','24+ months'];
+let D=EMBEDDED,charts={};
+
+// ── Multi-select state ──────────────────────────────────────────────────────
+var MS={
+  state:{sel:new Set(),items:[],el:'drop-state',box:'ms-state',label:'State'},
+  cluster:{sel:new Set(),items:[],el:'drop-cluster',box:'ms-cluster',label:'Cluster'},
+  mill:{sel:new Set(),items:[],el:'drop-mill',box:'ms-mill',label:'Mill'},
+  age:{sel:new Set(),items:[{v:0,l:'0-2 months'},{v:1,l:'2-4 months'},{v:2,l:'4-6 months'},{v:3,l:'6-12 months'},{v:4,l:'12-24 months'},{v:5,l:'24+ months'}],el:'drop-age',box:'ms-age',label:'Launch Age'},
+  cap:{sel:new Set(),items:[{v:0,l:'Below 100 MT/Month'},{v:1,l:'100-300 MT/Month (Small)'},{v:2,l:'300-1000 MT/Month (Medium)'},{v:3,l:'>1000 MT/Month (Large)'}],el:'drop-cap',box:'ms-cap',label:'Capacity'},
+  nqo:{sel:new Set(),items:[],el:'drop-nqo',box:'ms-nqo',label:'NQO'}
+};
+
+var ML=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function monthLabel(m){var p=m.split('-');return ML[+p[1]-1]+' '+p[0];}
+
+function initFromTo(){
+  var ff=document.getElementById('f-from'),ft=document.getElementById('f-to');
+  if(!ff||!ft) return;
+  D.months.forEach(function(m){ff.add(new Option(monthLabel(m),m));ft.add(new Option(monthLabel(m),m));});
+  ff.value=D.months[0];
+  ft.value=D.months[D.months.length-1];
+}
+
+function buildDrop(key){
+  var cfg=MS[key];
+  var el=document.getElementById(cfg.el);
+  if(!el) return;
+  // Build using DOM to avoid quote escaping issues
+  el.innerHTML='';
+  // Search input
+  var inp=document.createElement('input');
+  inp.className='ms-search';
+  inp.id='srch-'+key;
+  inp.placeholder='Search...';
+  inp.addEventListener('input',function(){filterDrop(key);});
+  inp.addEventListener('click',function(e){e.stopPropagation();});
+  el.appendChild(inp);
+  // Options container
+  var opts=document.createElement('div');
+  opts.className='ms-opts';
+  opts.id='opts-'+key;
+  // Select all row
+  var allRow=document.createElement('div');
+  allRow.className='ms-opt select-all';
+  var allCb=document.createElement('input');
+  allCb.type='checkbox';
+  allCb.id='chk-all-'+key;
+  allCb.addEventListener('click',function(e){e.stopPropagation();});
+  allRow.appendChild(allCb);
+  allRow.appendChild(document.createTextNode(' Select all'));
+  allRow.addEventListener('click',function(){toggleAll(key);});
+  opts.appendChild(allRow);
+  // Item rows
+  cfg.items.forEach(function(item){
+    var row=document.createElement('div');
+    row.className='ms-opt';
+    var cb=document.createElement('input');
+    cb.type='checkbox';
+    cb.setAttribute('data-val',item.v);
+    cb.addEventListener('click',function(e){e.stopPropagation();});
+    row.appendChild(cb);
+    row.appendChild(document.createTextNode(' '+item.l));
+    row.addEventListener('click',function(){toggleOpt(key,item.v,row);});
+    opts.appendChild(row);
+  });
+  el.appendChild(opts);
+  // Footer
+  var footer=document.createElement('div');
+  footer.className='ms-footer';
+  var clrBtn=document.createElement('span');
+  clrBtn.className='ms-clear';
+  clrBtn.textContent='Clear all';
+  clrBtn.addEventListener('click',function(){clearDrop(key);});
+  footer.appendChild(clrBtn);
+  el.appendChild(footer);
+}
+
+function toggleDrop(key){
+  var el=document.getElementById('drop-'+key);
+  var box=document.getElementById('ms-'+key);
+  var wasOpen=el.classList.contains('open');
+  // close all
+  Object.keys(MS).forEach(function(k){
+    document.getElementById('drop-'+k).classList.remove('open');
+    document.getElementById('ms-'+k).classList.remove('active');
+  });
+  if(!wasOpen){
+    el.classList.add('open');
+    box.classList.add('active');
+    var srch=document.getElementById('srch-'+key);
+    if(srch) srch.focus();
+  }
+}
+
+function filterDrop(key){
+  var val=document.getElementById('srch-'+key).value.toLowerCase();
+  var opts=document.getElementById('opts-'+key).querySelectorAll('.ms-opt:not(.select-all)');
+  opts.forEach(function(o){o.style.display=o.textContent.toLowerCase().includes(val)?'':'none';});
+}
+
+function toggleOpt(key,val,el){
+  var cfg=MS[key];
+  var cb=el.querySelector('input[type=checkbox]');
+  if(cfg.sel.has(val)){cfg.sel.delete(val);cb.checked=false;}
+  else{cfg.sel.add(val);cb.checked=true;}
+  updateBoxLabel(key);
+  applyFilters();
+}
+
+function toggleAll(key){
+  var cfg=MS[key];
+  var allCb=document.getElementById('chk-all-'+key);
+  if(cfg.sel.size===cfg.items.length){
+    cfg.sel.clear();
+    document.querySelectorAll('#opts-'+key+' .ms-opt:not(.select-all) input').forEach(function(c){c.checked=false;});
+    allCb.checked=false;
+  } else {
+    cfg.items.forEach(function(i){cfg.sel.add(i.v);});
+    document.querySelectorAll('#opts-'+key+' .ms-opt:not(.select-all) input').forEach(function(c){c.checked=true;});
+    allCb.checked=true;
+  }
+  updateBoxLabel(key);
+  applyFilters();
+}
+
+function clearDrop(key){
+  MS[key].sel.clear();
+  document.querySelectorAll('#opts-'+key+' input[type=checkbox]').forEach(function(c){c.checked=false;});
+  updateBoxLabel(key);
+  applyFilters();
+}
+
+function updateBoxLabel(key){
+  var cfg=MS[key];
+  var box=document.getElementById('ms-'+key);
+  var n=cfg.sel.size;
+  var allLabels={'state':'All States','cluster':'All Clusters','mill':'All Mills','age':'All Ages','npo':'All NPOs','nqo':'All NQOs'};
+  if(n===0){
+    box.innerHTML=allLabels[key]+' <span class="ms-arrow">&#9660;<\/span>';
+  } else if(n===1){
+    var selVal=[...cfg.sel][0];
+    var item=cfg.items.find(function(i){return i.v===selVal;});
+    var lbl=item?item.l:selVal;
+    box.innerHTML=(lbl.length>18?lbl.slice(0,16)+'...':lbl)+' <span class="ms-arrow">&#9660;<\/span>';
+  } else {
+    box.innerHTML=cfg.label+' <span class="ms-count">'+n+'<\/span> <span class="ms-arrow">&#9660;<\/span>';
+  }
+}
+
+function initSelects(){
+  MS.state.items=D.states.map(function(s,i){return {v:i,l:s};});
+  MS.cluster.items=D.clusters.map(function(c,i){return {v:i,l:c};});
+  MS.mill.items=D.mills.map(function(m,i){return {v:i,l:D.mill_names[m]||m};});
+  MS.nqo.items=D.qos.map(function(q,i){return {v:i,l:q};});
+  Object.keys(MS).forEach(function(k){buildDrop(k);});
+  initFromTo();
+  // Populate launch cutoff dropdown
+  var lcEl=document.getElementById('f-launch-cutoff');
+  if(lcEl&&D.launch_months){
+    lcEl.innerHTML='<option value="">All launch dates<\/option>';
+    D.launch_months.forEach(function(m){lcEl.add(new Option(monthLabel(m),m));});
+  }
+  // Populate local flag + reversion filter states
+  var states=D.states.slice().sort();
+  ['pf-state','if-state','rv-state'].forEach(function(id){
+    var sel=document.getElementById(id);
+    if(!sel) return;
+    states.forEach(function(s){sel.add(new Option(s,s));});
+  });
+  renderProdFlags();
+  renderIchFlags();
+  renderReversionTable();
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click',function(e){
+  if(!e.target.closest('.ms-wrap')&&!e.target.closest('.filter-group')){
+    Object.keys(MS).forEach(function(k){
+      var d=document.getElementById('drop-'+k);
+      var b=document.getElementById('ms-'+k);
+      if(d){d.classList.remove('open');}
+      if(b){b.classList.remove('active');}
+    });
+  }
+});
+
+function getFiltered(){
+  var from=document.getElementById('f-from').value;
+  var to=document.getElementById('f-to').value;
+  var fromIdx=D.months.indexOf(from);
+  var toIdx=D.months.indexOf(to);
+  if(fromIdx>toIdx){var tmp=fromIdx;fromIdx=toIdx;toIdx=tmp;}
+  return D.records.filter(function(r){
+    if(r[F.MONTH]<fromIdx||r[F.MONTH]>toIdx) return false;
+    if(MS.state.sel.size>0&&MS.state.sel.size<D.states.length&&!MS.state.sel.has(r[F.STATE])) return false;
+    if(MS.cluster.sel.size>0&&MS.cluster.sel.size<D.clusters.length&&!MS.cluster.sel.has(r[F.CLUSTER])) return false;
+    if(MS.mill.sel.size>0&&MS.mill.sel.size<D.mills.length&&!MS.mill.sel.has(r[F.MILL])) return false;
+    if(MS.age.sel.size>0&&MS.age.sel.size<MS.age.items.length&&!MS.age.sel.has(r[F.AGE])) return false;
+    if(MS.cap.sel.size>0&&MS.cap.sel.size<MS.cap.items.length&&!MS.cap.sel.has(r[F.CAP])) return false;
+    if(MS.nqo.sel.size>0&&MS.nqo.sel.size<D.qos.length&&!MS.nqo.sel.has(r[F.QO])) return false;
+    // Launch month filter: include only mills launched on or before the cutoff
+    var launchCutoff=document.getElementById('f-launch-cutoff');
+    if(launchCutoff&&launchCutoff.value){
+      var cutoffIdx=D.launch_months?D.launch_months.indexOf(launchCutoff.value):-1;
+      if(cutoffIdx>=0&&r[F.LAUNCH_M]>=0&&r[F.LAUNCH_M]>cutoffIdx) return false;
+    }
+    return true;
+  });
+}
+
+function fmt(n,d){if(n==null||isNaN(n))return '-';if(Math.abs(n)>=1e6)return (n/1e6).toFixed(1)+'M';if(Math.abs(n)>=1e3)return (n/1e3).toFixed(1)+'K';return d?n.toFixed(d):Math.round(n).toString();}
+function pc(v,t){return t?Math.round(v/t*100):0;}
+function kc(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+function mkChart(id,cfg){kc(id);var el=document.getElementById(id);if(!el)return;charts[id]=new Chart(el.getContext('2d'),cfg);return charts[id];}
+function setHTML(id,h){var el=document.getElementById(id);if(el)el.innerHTML=h;}
+var CO={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},animation:{duration:250}};
+function scY(yOpts){return{y:Object.assign({beginAtZero:true,grid:{color:'rgba(0,0,0,.04)'}},yOpts||{}),x:{ticks:{maxTicksLimit:12,maxRotation:45,font:{size:11}},grid:{display:false}}};}
+function ml(m){var p=m.split('-');return ML[+p[1]-1]+" '"+p[0].slice(2);}
+
+function getLatestNMSplit(recsArr){
+  var latMo={},latNM={};
+  recsArr.forEach(function(r){var mc=r[F.MILL];if(latMo[mc]===undefined||r[F.MONTH]>latMo[mc]){latMo[mc]=r[F.MONTH];latNM[mc]=r[F.NM];}});
+  var nmSet=new Set(),moSet=new Set();
+  Object.keys(latNM).forEach(function(mc){if(latNM[mc]===1)nmSet.add(+mc);else moSet.add(+mc);});
+  return{nmSet:nmSet,moSet:moSet};
+}
+
+function loadDataViaJSONP(sheetName,callbackFn){
+  // Try fetch() first - works when Apps Script access is set to "Anyone"
+  fetch(APPS_URL+'?sheet='+sheetName,{method:'GET',mode:'cors'})
+    .then(function(r){
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      return r.json();
+    })
+    .then(function(data){callbackFn(null,data);})
+    .catch(function(){
+      // Fallback: JSONP with 60s timeout
+      var cbName='jsonpCb_'+Date.now();
+      var scriptEl=document.createElement('script');
+      var done=false;
+      var timer=setTimeout(function(){
+        if(done)return;
+        done=true;
+        delete window[cbName];
+        if(scriptEl.parentNode)scriptEl.parentNode.removeChild(scriptEl);
+        callbackFn(new Error('timeout'));
+      },60000);
+      window[cbName]=function(data){
+        if(done)return;
+        done=true;
+        clearTimeout(timer);
+        delete window[cbName];
+        if(scriptEl.parentNode)scriptEl.parentNode.removeChild(scriptEl);
+        callbackFn(null,data);
+      };
+      scriptEl.src=APPS_URL+'?sheet='+sheetName+'&callback='+cbName;
+      document.head.appendChild(scriptEl);
+    });
+}
+
+function showToast(msg,col){
+  var t=document.getElementById('refresh-toast');
+  if(!t){t=document.createElement('div');t.id='refresh-toast';
+    t.style.cssText='position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;color:#fff;z-index:9999;max-width:320px;box-shadow:0 4px 12px rgba(0,0,0,.2);transition:opacity .4s';
+    document.body.appendChild(t);}
+  t.textContent=msg;t.style.background=col||'#22c07e';t.style.opacity='1';
+  clearTimeout(t._hide);t._hide=setTimeout(function(){t.style.opacity='0';},4000);
+}
+function refreshData(){
+  var btn=document.getElementById('refresh-btn');
+  btn.classList.add('loading');btn.textContent='Refreshing...';
+  showToast('Fetching latest data from sheet...','#6c63ff');
+  loadDataViaJSONP('database',function(err,raw){
+    btn.textContent='↻ Refresh';btn.classList.remove('loading');
+    if(err||!raw||!raw.rows){
+      showToast('Live refresh unavailable — the dashboard auto-updates daily via GitHub Actions. Data shown is from the last scheduled update.','#f5a623');
+      return;
+    }
+    D=processRaw(raw.rows);
+    Object.keys(MS).forEach(function(k){MS[k].sel.clear();});
+    document.getElementById('f-from').innerHTML='';
+    document.getElementById('f-to').innerHTML='';
+    initSelects();applyFilters();
+    showToast('Data refreshed successfully ✔','#22c07e');
+  });
+}
+
+function processRaw(rows){
+  // Mirrors rebuild_dashboard.py logic exactly
+  var rca_cols=[
+    'RCA: Human \/ Operational \/ Protocol',
+    'RCA: Equipment \/ Mechanical \/ Electrical',
+    'RCA: Microfeeder Calibration \/ Set-up',
+    'RCA: Sampling Issue','RCA: Premix Issue','RCA: No Issue \/ Retesting'
+  ];
+  var cap_cats=['Below 100 MT\/Month','100-300 MT\/Month','300-1000 MT\/Month','More than 1000 MT\/ Month'];
+
+  // ── Pass 1: determine month range dynamically ────────────────────────────
+  var maxMonth='';
+  rows.forEach(function(r){
+    if(!r['Mill Code']) return;
+    var dIST=new Date(new Date(r['Month ']).getTime()+(5.5*3600000));
+    var ms=dIST.getFullYear()+'-'+(dIST.getMonth()+1).toString().padStart(2,'0');
+    if(ms>maxMonth) maxMonth=ms;
+  });
+  var minMonth='2022-07';
+  console.log('processRaw: month range',minMonth,'to',maxMonth);
+
+  // ── Pass 2: build lookup tables ──────────────────────────────────────────
+  var ms_set={},st_set={},cl_set={},mi_set={},qo_set={},po_set={},lm_set={};
+  var mill_names={},mill_launch={},mill_stage_latest={},mill_stage_month={};
+  rows.forEach(function(r){
+    if(!r['Mill Code']) return;
+    var dIST=new Date(new Date(r['Month ']).getTime()+(5.5*3600000));
+    var ms=dIST.getFullYear()+'-'+(dIST.getMonth()+1).toString().padStart(2,'0');
+    if(ms<minMonth||ms>maxMonth) return;
+    ms_set[ms]=1;
+    if(r['State Name'])  st_set[r['State Name']]=1;
+    if(r['Cluster Name'])cl_set[r['Cluster Name']]=1;
+    if(r['Mill Code']){
+      mi_set[r['Mill Code']]=1;
+      mill_names[r['Mill Code']]=r['Mill Name']||r['Mill Code'];
+    }
+    if(r['Quality Officer']&&r['Quality Officer'].trim()) qo_set[r['Quality Officer'].trim()]=1;
+    if(r['Program Officer']&&r['Program Officer'].trim()) po_set[r['Program Officer'].trim()]=1;
+    // Track latest stage per mill
+    if(!mill_stage_month[r['Mill Code']]||ms>mill_stage_month[r['Mill Code']]){
+      mill_stage_latest[r['Mill Code']]=r['Mill Stage'];
+      mill_stage_month[r['Mill Code']]=ms;
+    }
+    // Launch month
+    if(r['Launch date']){
+      var ldIST=new Date(new Date(r['Launch date']).getTime()+(5.5*3600000));
+      var lm=ldIST.getFullYear()+'-'+(ldIST.getMonth()+1).toString().padStart(2,'0');
+      if(!isNaN(ldIST.getTime())&&lm>='2019-01'){
+        lm_set[lm]=1;
+        mill_launch[r['Mill Code']]=lm;
+      }
+    }
+  });
+
+  var months=Object.keys(ms_set).sort();
+  var states=Object.keys(st_set).sort();
+  var clusters=Object.keys(cl_set).sort();
+  var mills=Object.keys(mi_set).sort();
+  var qos=Object.keys(qo_set).sort();
+  var pos=Object.keys(po_set).sort();
+  var launch_months=Object.keys(lm_set).sort();
+
+  var mi_map={},st_map={},cl_map={},ml_map={},cp_map={},qo_map={},po_map={},lm_map={};
+  months.forEach(function(m,i){mi_map[m]=i;});
+  states.forEach(function(s,i){st_map[s]=i;});
+  clusters.forEach(function(c,i){cl_map[c]=i;});
+  mills.forEach(function(m,i){ml_map[m]=i;});
+  cap_cats.forEach(function(c,i){cp_map[c]=i;});
+  qos.forEach(function(q,i){qo_map[q]=i;});
+  pos.forEach(function(p,i){po_map[p]=i;});
+  launch_months.forEach(function(m,i){lm_map[m]=i;});
+
+  // ── Pipeline counts from latest stage per mill ───────────────────────────
+  var pip_launched=0,pip_pre=0,pip_term=0,pip_states=new Set(),pip_clusters=new Set();
+  rows.forEach(function(r){
+    if(!r['Mill Code']) return;
+    var mc=r['Mill Code'];
+    if(mill_stage_latest[mc]===r['Mill Stage']&&mill_stage_month[mc]){
+      if(r['Mill Stage']==='Launched')      pip_launched++;
+      else if(r['Mill Stage']==='Pre-Launch')pip_pre++;
+      else if(r['Mill Stage']==='Terminated')pip_term++;
+    }
+    if(r['State Name']) pip_states.add(r['State Name']);
+    if(r['Cluster Name']) pip_clusters.add(r['Cluster Name']);
+  });
+  // Deduplicate - count each mill once
+  var seen={};
+  pip_launched=0;pip_pre=0;pip_term=0;
+  Object.keys(mill_stage_latest).forEach(function(mc){
+    var s=mill_stage_latest[mc];
+    if(s==='Launched')pip_launched++;
+    else if(s==='Pre-Launch')pip_pre++;
+    else if(s==='Terminated')pip_term++;
+  });
+
+  // ── Helper functions matching Python ────────────────────────────────────
+  function ageBkt(ls,ms){
+    if(!ls) return 4;
+    var ldIST=new Date(new Date(ls).getTime()+(5.5*3600000));
+    var a=(new Date(ms+'-01').getTime()-ldIST.getTime())/(30.44*864e5);
+    if(isNaN(a)||a<0) return 4;
+    if(a<=6) return 0; if(a<=12) return 1; if(a<=24) return 2; return 3;
+  }
+  function ichS(v){
+    if(!v||v===0) return 0;
+    if(v<14) return 1; if(v<=21.25) return 2; if(v<=28) return 3; return 4;
+  }
+  function rcaB(r){
+    var b=0;
+    rca_cols.forEach(function(c,i){if(r[c]==='Yes')b|=(1<<i);});
+    return b;
+  }
+
+  // ── Pass 3: build records (all mills, no stage filter) ───────────────────
+  var records=[];
+  rows.forEach(function(r){
+    var mc=r['Mill Code']; if(!mc) return;
+    var dIST=new Date(new Date(r['Month ']).getTime()+(5.5*3600000));
+    var ms=dIST.getFullYear()+'-'+(dIST.getMonth()+1).toString().padStart(2,'0');
+    if(ms<minMonth||ms>maxMonth) return;
+    if(!(mc in ml_map)||!(ms in mi_map)) return;
+
+    var ich=parseFloat(r['Icheck result  (mg/kg)'])||0;
+    var ichV=ich===0?null:Math.round(ich*100)/100;
+    var prod=parseFloat(r['Fortified atta production volume (MT)'])||0;
+    var pdevRaw=r['% Deviation from 3-Month Avg'];
+    var pdev=(pdevRaw===''||pdevRaw===null||pdevRaw===undefined)?null:parseFloat(pdevRaw);
+    var bene=parseFloat(r['Beneficiaries reached'])||0;
+    var avg3m=parseFloat(r['Avg Production Last 3 Months (MT)'])||0;
+    var qo=(r['Quality Officer']||'').trim();
+    var po=(r['Program Officer']||'').trim();
+    var lmStr=mill_launch[mc]||null;
+
+    records.push([
+      mi_map[ms],
+      ml_map[mc],
+      st_map[r['State Name']]!==undefined?st_map[r['State Name']]:-1,
+      cl_map[r['Cluster Name']]!==undefined?cl_map[r['Cluster Name']]:-1,
+      cp_map[r['Mill Capacity Category']]!==undefined?cp_map[r['Mill Capacity Category']]:-1,
+      ageBkt(r['Launch date'],ms),
+      ichV,
+      ichS(ichV),
+      prod===0?null:Math.round(prod*10)/10,
+      isNaN(pdev)||pdev===null?null:Math.round(pdev*10)/10,
+      r['Selected for Non-Monthly Visit']==='Yes'?1:0,
+      rcaB(r),
+      bene>0?bene:null,
+      avg3m>0?Math.round(avg3m*10)/10:null,
+      qo_map[qo]!==undefined?qo_map[qo]:-1,
+      po_map[po]!==undefined?po_map[po]:-1,
+      lmStr&&lm_map[lmStr]!==undefined?lm_map[lmStr]:-1   // F.LAUNCH_M = index 16
+    ]);
+  });
+
+  return{
+    months:months,states:states,clusters:clusters,
+    mills:mills,mill_names:mill_names,cap_cats:cap_cats,
+    rca_labels:RCA_LABELS,qos:qos,pos:pos,
+    launch_months:launch_months,
+    pipeline:{
+      launched:pip_launched,pre_launch:pip_pre,terminated:pip_term,
+      states:pip_states.size,clusters:pip_clusters.size
+    },
+    records:records
+  };
+}
+
+
+function applyFilters(){var r=getFiltered();renderOverview(r);renderProduction(r);renderICheck(r);renderDrivers(r);renderVisitCat(r);}
+
+
+// ==================== PRODUCTION ACTION FLAGS (all mills, local filters) ====================
+function renderProdFlags(){
+  // Populate month dropdown on first call (months with production data)
+  var pfMonth=document.getElementById('pf-month');
+  if(pfMonth && pfMonth.options.length===0){
+    // Add months that have any production data, exclude June 2026 (all-zero)
+    var prodMonths=[];
+    D.months.forEach(function(m,i){
+      var hasP=D.records.some(function(r){return r[F.MONTH]===i&&r[F.PROD]!=null&&r[F.PROD]>0;});
+      if(hasP) prodMonths.push({m:m,i:i});
+    });
+    // Add in reverse (latest first)
+    prodMonths.slice().reverse().forEach(function(p){
+      var opt=document.createElement('option');
+      opt.value=p.m; opt.text=ml(p.m);
+      pfMonth.appendChild(opt);
+    });
+    // Default: last month with production
+    if(prodMonths.length) pfMonth.value=prodMonths[prodMonths.length-1].m;
+  }
+
+  var selMonth=pfMonth?pfMonth.value:'';
+  var selMonthIdx=selMonth?D.months.indexOf(selMonth):-1;
+  var statusF=document.getElementById('pf-status')?document.getElementById('pf-status').value:'';
+  var stateF=document.getElementById('pf-state')?document.getElementById('pf-state').value:'';
+  var searchF=document.getElementById('pf-search')?(document.getElementById('pf-search').value||'').toLowerCase():'';
+
+  // Get all records for the selected month
+  var monthRecs=D.records.filter(function(r){return r[F.MONTH]===selMonthIdx;});
+
+  // Build per-mill rows for selected month
+  var rows=[];
+  monthRecs.forEach(function(r){
+    var mc=D.mills[r[F.MILL]];
+    var mn=D.mill_names[mc]||mc;
+    var state=D.states[r[F.STATE]]||'';
+    var cluster=D.clusters[r[F.CLUSTER]]||'';
+
+    // Apply local filters
+    if(stateF && state!==stateF) return;
+    if(searchF && mn.toLowerCase().indexOf(searchF)<0) return;
+
+    var prod=r[F.PROD];      // current month production
+    var annBm=r[F.ANN_BM];   // rolling 12-month mean of prior months
+    var avg3m=r[F.AVG3M];    // 3-month avg (fallback)
+    var bench=annBm!=null?annBm:avg3m;  // prefer annual benchmark
+
+    // Compute % deviation vs annual benchmark
+    var pdev=null;
+    var benchLabel=annBm!=null?'vs 12-month avg':'vs 3-month avg';
+    var status='No Data';
+    if(prod!=null&&bench!=null&&bench>0){
+      pdev=Math.round((prod-bench)/bench*100*10)/10;
+      if(pdev<-50)      status='Severe Decline';
+      else if(pdev<-20) status='Declining';
+      else if(pdev<=20) status='Stable';
+      else              status='Growing';
+    } else if(prod==null){
+      status='No Production';
+    }
+
+    if(statusF && status!==statusF) return;
+
+    rows.push({mc:mc,name:mn,state:state,cluster:cluster,
+      prod:prod,avg3m:avg3m,pdev:pdev,status:status});
+  });
+
+  // Sort: worst first
+  var order={'Severe Decline':0,'Declining':1,'No Production':2,'Stable':3,'Growing':4,'No Data':5};
+  rows.sort(function(a,b){
+    var od=(order[a.status]||3)-(order[b.status]||3);
+    if(od!==0) return od;
+    return (a.pdev||0)-(b.pdev||0);
+  });
+
+  var cntEl=document.getElementById('pf-count');
+  if(cntEl) cntEl.textContent=rows.length+' mills';
+
+  if(!rows.length){
+    setHTML('prod-flags','<div class="no-data">No mills match selected filters.<\/div>');
+    return;
+  }
+
+  var sCol={'Severe Decline':'#e85c5c','Declining':'#f5a623','Stable':'#94a3b8',
+            'Growing':'#22c07e','No Production':'#ddd','No Data':'#ddd'};
+
+  var h='<table class="dt"><thead><tr>'+
+    '<th>Mill<\/th><th>State<\/th><th>Cluster<\/th>'+
+    '<th>Current Production<\/th>'+
+    '<th>Benchmark (12-month avg)<\/th>'+
+    '<th>% Deviation<\/th>'+
+    '<th>Status<\/th>'+
+    '<\/tr><\/thead><tbody>';
+
+  rows.forEach(function(r){
+    var sc=sCol[r.status]||'#94a3b8';
+    h+='<tr>';
+    h+='<td><b>'+r.name+'<\/b><div style="font-size:10.5px;color:#aaa">'+r.mc+'<\/div><\/td>';
+    h+='<td style="font-size:12px">'+r.state+'<\/td>';
+    h+='<td style="font-size:12px">'+r.cluster+'<\/td>';
+    h+='<td style="font-weight:700">'+(r.prod!=null?fmt(r.prod)+' MT':'<span style="color:#aaa">No data<\/span>')+'<\/td>';
+    h+='<td style="color:#666">'+(r.avg3m!=null?fmt(r.avg3m)+' MT':'-')+'<\/td>';
+    h+='<td>'+(r.pdev!=null?'<b style="color:'+sc+'">'+(r.pdev>0?'+':'')+r.pdev.toFixed(1)+'%<\/b>':'-')+'<\/td>';
+    h+='<td><span class="badge" style="background:'+sc+'22;color:'+sc+';border:1px solid '+sc+'44">'+r.status+'<\/span><\/td>';
+    h+='<\/tr>';
+  });
+  h+='<\/tbody><\/table>';
+  setHTML('prod-flags',h);
+}
+
+// ==================== iCHECK ACTION FLAGS (all mills, local filters) ====================
+function renderIchFlags(){
+  // Local filters (independent of global filters)
+  var statusF = document.getElementById('if-status') ? document.getElementById('if-status').value : '';
+  var stateF  = document.getElementById('if-state')  ? document.getElementById('if-state').value  : '';
+  var streakF = document.getElementById('if-streak') ? parseInt(document.getElementById('if-streak').value)||0 : 0;
+  var searchF = document.getElementById('if-search') ? (document.getElementById('if-search').value||'').toLowerCase() : '';
+
+  // Build per-mill flags from ALL_FLAGS (independent of global filters)
+  var rows = ALL_FLAGS.filter(function(r){
+    if(statusF && r.ichstatus !== statusF) return false;
+    if(stateF  && r.state     !== stateF)  return false;
+    if(streakF && (r.ich_streak||0) < streakF) return false;
+    if(searchF && (r.name||'').toLowerCase().indexOf(searchF) < 0) return false;
+    return true;
+  });
+
+  // Sort: OOR first, then by streak descending
+  rows.sort(function(a,b){
+    var aoor = a.ichstatus !== 'Within Range' && a.ichstatus !== 'No Data' ? 1 : 0;
+    var boor = b.ichstatus !== 'Within Range' && b.ichstatus !== 'No Data' ? 1 : 0;
+    if(aoor !== boor) return boor - aoor;
+    return (b.ich_streak||0) - (a.ich_streak||0);
+  });
+
+  var cntEl = document.getElementById('if-count');
+  if(cntEl) cntEl.textContent = rows.length + ' mills';
+
+  if(!rows.length){
+    setHTML('ich-flags','<div class="no-data">No mills match selected filters.<\/div>');
+    return;
+  }
+
+  function ichColor(s){
+    if(s==='Within Range')         return '#22c07e';
+    if(s==='Below Range')          return '#f5a623';
+    if(s==='21.26-28')             return '#e85c5c';
+    if(s==='Above 28')             return '#7b1d1d';
+    return '#aaa';
+  }
+  function ml2(m){
+    if(!m) return '-';
+    var p=m.split('-');
+    var MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return MN[+p[1]-1]+' '+p[0];
+  }
+
+  var h = '<table class="dt"><thead><tr>'+
+    '<th>Mill<\/th>'+
+    '<th>State<\/th>'+
+    '<th>Cluster<\/th>'+
+    '<th>iCheck Status<\/th>'+
+    '<th>Latest iCheck (mg/kg)<\/th>'+
+    '<th>Reported Month<\/th>'+
+    '<th>Consec. OOR Months<\/th>'+
+    '<\/tr><\/thead><tbody>';
+
+  rows.forEach(function(r){
+    var ic = ichColor(r.ichstatus);
+    var isOOR = r.ichstatus !== 'Within Range' && r.ichstatus !== 'No Data';
+    var streakBadge = '-';
+    if(r.ich_streak >= 3){
+      streakBadge = '<span style="background:#fff3f3;color:#c0392b;border:1px solid #ffc0c0;'+
+        'padding:2px 8px;border-radius:10px;font-size:11.5px;font-weight:700">'+r.ich_streak+' months<\/span>';
+    } else if(r.ich_streak >= 1){
+      streakBadge = '<span style="color:#888;font-size:12px">'+r.ich_streak+' month'+(r.ich_streak>1?'s':'')+'<\/span>';
+    }
+
+    h += '<tr'+(r.ich_streak>=3?' style="background:#fff8f8"':'')+'>';
+    h += '<td><b>'+r.name+'<\/b><div style="font-size:10.5px;color:#aaa">'+r.mc+'<\/div><\/td>';
+    h += '<td style="font-size:12px">'+r.state+'<\/td>';
+    h += '<td style="font-size:12px">'+r.cluster+'<\/td>';
+    h += '<td><span class="badge" style="background:'+ic+'22;color:'+ic+';border:1px solid '+ic+'44">'+r.ichstatus+'<\/span><\/td>';
+    h += '<td style="font-weight:700;font-size:14px">'+(r.ich_val != null ? r.ich_val : '-')+'<\/td>';
+    h += '<td style="color:#888;font-size:12px">'+ml2(r.ich_month)+'<\/td>';
+    h += '<td>'+streakBadge+'<\/td>';
+    h += '<\/tr>';
+  });
+
+  h += '<\/tbody><\/table>';
+  setHTML('ich-flags', h);
+}
+
+
+function renderReversionTable(){
+  var reasonF = document.getElementById('rv-reason') ? document.getElementById('rv-reason').value : '';
+  var stateF  = document.getElementById('rv-state')  ? document.getElementById('rv-state').value  : '';
+  var searchF = document.getElementById('rv-search') ? (document.getElementById('rv-search').value||'').toLowerCase() : '';
+
+  var rows = REVERSIONS.filter(function(r){
+    if(reasonF && r.trigger.indexOf(reasonF)<0) return false;
+    if(stateF  && r.state !== stateF) return false;
+    if(searchF && (r.name||'').toLowerCase().indexOf(searchF)<0) return false;
+    return true;
+  });
+  rows.sort(function(a,b){ return a.revert_month<b.revert_month?1:-1; });
+
+  // Count chips
+  var chips={ich:0,dec:0,surge:0,nosig:0};
+  rows.forEach(function(r){
+    if(r.trigger.indexOf('iCheck OOR')>=0)chips.ich++;
+    if(r.trigger.indexOf('declining')>=0)chips.dec++;
+    if(r.trigger.indexOf('surge')>=0)chips.surge++;
+    if(r.trigger.indexOf('No clear signal')>=0)chips.nosig++;
+  });
+  var chipHtml=[
+    {l:'iCheck OOR: '+chips.ich, c:'#e85c5c'},
+    {l:'Prod Declining: '+chips.dec, c:'#f5a623'},
+    {l:'Prod Surge: '+chips.surge, c:'#5b8cff'},
+    {l:'No Signal: '+chips.nosig, c:'#94a3b8'}
+  ].map(function(c){
+    return '<div style="padding:3px 10px;border-radius:16px;font-size:12px;font-weight:600;background:'+c.c+'22;color:'+c.c+';border:1px solid '+c.c+'44">'+c.l+'<\/div>';
+  }).join('');
+  setHTML('rv-summary-chips', chipHtml);
+
+  var cntEl=document.getElementById('rv-count');
+  if(cntEl)cntEl.textContent=rows.length+' reversion'+(rows.length!==1?'s':'');
+
+  if(!rows.length){
+    setHTML('reversion-body','<div class="no-data">No reversions match selected filters.<\/div>');
+    return;
+  }
+
+  function ichBadge(v,s){
+    if(v==null)return '-';
+    var c=s==='In Range'?'#22c07e':s==='Below'?'#f5a623':'#e85c5c';
+    return '<span style="padding:1px 6px;border-radius:8px;font-size:11px;font-weight:600;background:'+c+'22;color:'+c+';border:1px solid '+c+'44">'+v+'<\/span>';
+  }
+  function trigTag(t){
+    var tags='';
+    if(t.indexOf('iCheck OOR')>=0)  tags+='<span style="padding:2px 7px;border-radius:8px;font-size:11px;font-weight:600;background:#e85c5c22;color:#e85c5c;border:1px solid #e85c5c44;margin-right:3px">iCheck OOR<\/span>';
+    if(t.indexOf('declining')>=0)   tags+='<span style="padding:2px 7px;border-radius:8px;font-size:11px;font-weight:600;background:#f5a62322;color:#f5a623;border:1px solid #f5a62344;margin-right:3px">Prod Declining<\/span>';
+    if(t.indexOf('surge')>=0)       tags+='<span style="padding:2px 7px;border-radius:8px;font-size:11px;font-weight:600;background:#5b8cff22;color:#5b8cff;border:1px solid #5b8cff44;margin-right:3px">Prod Surge<\/span>';
+    if(t.indexOf('No clear signal')>=0) tags+='<span style="padding:2px 7px;border-radius:8px;font-size:11px;font-weight:600;background:#94a3b822;color:#94a3b8;border:1px solid #94a3b844">No Signal<\/span>';
+    return tags||'-';
+  }
+  function mLabel(m){
+    if(!m)return '-';
+    var p=m.split('-');
+    var MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return MN[+p[1]-1]+' '+p[0];
+  }
+
+  var h='<table class="dt"><thead><tr>'+
+    '<th>Mill<\/th><th>State<\/th>'+
+    '<th>Reverted<\/th><th>NM Duration<\/th>'+
+    '<th>Pre-Reversion iCheck (last 3)<\/th>'+
+    '<th>Pre-Reversion Prod Dev<\/th>'+
+    '<th>Inferred Trigger<\/th>'+
+    '<\/tr><\/thead><tbody>';
+
+  rows.forEach(function(r){
+    var ichCells=(r.pre_ich||[]).map(function(v,i){
+      return ichBadge(v,(r.pre_ich_status||[])[i]||'');
+    }).join(' ')||'-';
+    var devCells=(r.pre_pdev||[]).map(function(v){
+      var c=v<-20?'#e85c5c':v>30?'#5b8cff':'#94a3b8';
+      return '<span style="color:'+c+';font-weight:600">'+(v>0?'+':'')+v+'%<\/span>';
+    }).join(' ')||'-';
+
+    h+='<tr>'+
+      '<td><b>'+r.name+'<\/b><div style="font-size:10.5px;color:#aaa">'+r.mc+'<\/div><\/td>'+
+      '<td style="font-size:12px">'+r.state+'<\/td>'+
+      '<td style="white-space:nowrap;font-weight:600">'+mLabel(r.revert_month)+'<\/td>'+
+      '<td style="text-align:center"><span style="font-weight:700;color:#6c63ff">'+r.nm_duration+'m<\/span><\/td>'+
+      '<td>'+ichCells+'<\/td>'+
+      '<td>'+devCells+'<\/td>'+
+      '<td>'+trigTag(r.trigger)+'<\/td>'+
+      '<\/tr>';
+  });
+  h+='<\/tbody><\/table>';
+  setHTML('reversion-body', h);
+}
+
+
+function switchTab(i){document.querySelectorAll('.tab').forEach(function(t,j){t.classList.toggle('active',j===i);});document.querySelectorAll('.page').forEach(function(p,j){p.classList.toggle('active',j===i);});window.scrollTo({top:0,behavior:'smooth'});}
+
+// ==================== OVERVIEW ====================
+function renderOverview(recs) {
+  // Pipeline tiles: always from D.pipeline (unfiltered totals)
+  setHTML('ov-pipeline',
+    '<div class="pipe-tile t-purple"><div class="pipe-val">'+D.pipeline.launched+'<\/div><div class="pipe-lbl">Launched<\/div><\/div>'+
+    '<div class="pipe-tile t-blue"><div class="pipe-val">'+D.pipeline.pre_launch+'<\/div><div class="pipe-lbl">Pre-Launch<\/div><\/div>'+
+    '<div class="pipe-tile t-red"><div class="pipe-val">'+D.pipeline.terminated+'<\/div><div class="pipe-lbl">Terminated<\/div><\/div>'+
+    '<div class="pipe-tile t-green"><div class="pipe-val">'+D.pipeline.states+'<\/div><div class="pipe-lbl">States<\/div><\/div>'
+  );
+
+  if(!recs||!recs.length){
+    setHTML('ov-kpis','<div class="no-data">No data for selected filters.<\/div>');
+    setHTML('ov-range','');setHTML('ov-rca','');setHTML('ov-visit','');
+    return;
+  }
+
+  var pr=recs.filter(function(r){return r[F.PROD]!=null&&r[F.PROD]>0;});
+  var ir=recs.filter(function(r){return r[F.ICHECK]!=null;});
+
+  // Active mills: mills with production in latest month of filtered period
+  var mIdxSet={};
+  recs.forEach(function(r){mIdxSet[r[F.MONTH]]=1;});
+  var mIdxArr=Object.keys(mIdxSet).map(Number).sort(function(a,b){return a-b;});
+  var latestMIdx=mIdxArr.length?mIdxArr[mIdxArr.length-1]:-1;
+  var prevMIdx=mIdxArr.length>1?mIdxArr[mIdxArr.length-2]:-1;
+
+  var activeSet=new Set();
+  pr.forEach(function(r){if(r[F.MONTH]===latestMIdx)activeSet.add(r[F.MILL]);});
+  var prevSet=new Set();
+  pr.forEach(function(r){if(r[F.MONTH]===prevMIdx)prevSet.add(r[F.MILL]);});
+  // Step back if latest month has <10% of prev (reporting lag)
+  var useIdx=(activeSet.size>0&&(prevSet.size===0||activeSet.size>=prevSet.size*0.1))?latestMIdx:prevMIdx;
+  var activeCount=0;
+  pr.forEach(function(r){if(r[F.MONTH]===useIdx)activeCount++;});
+  var lm=(useIdx>=0&&D.months[useIdx])?D.months[useIdx]:'';
+
+  // Total production
+  var totalProd=pr.reduce(function(s,r){return s+(r[F.PROD]||0);},0);
+
+  // Beneficiaries: monthly SUM then peak
+  var beneByMonth={};
+  recs.forEach(function(r){
+    if(r[F.BENE]!=null&&r[F.BENE]>0){
+      var m=D.months[r[F.MONTH]];
+      if(m)beneByMonth[m]=(beneByMonth[m]||0)+r[F.BENE];
+    }
+  });
+  var peakBeneM=null,peakBeneV=0;
+  Object.keys(beneByMonth).forEach(function(m){if(beneByMonth[m]>peakBeneV){peakBeneV=beneByMonth[m];peakBeneM=m;}});
+
+  // Avg iCheck
+  var avgIch=ir.length?(ir.reduce(function(s,r){return s+r[F.ICHECK];},0)/ir.length):0;
+
+  // Range counts
+  var blw=0,win=0,abv=0;
+  ir.forEach(function(r){
+    if(r[F.ICHS]===1)blw++;
+    else if(r[F.ICHS]===2)win++;
+    else if(r[F.ICHS]>=3)abv++;
+  });
+  var totIch=blw+win+abv;
+
+  // KPI cards
+  setHTML('ov-kpis',
+    '<div class="kpi t-purple"><div class="kpi-lbl">Active Mills<\/div><div class="kpi-val">'+activeCount+'<\/div>'+
+      '<div class="kpi-sub">With production in '+(lm?ml(lm):'period')+'<\/div><\/div>'+
+    '<div class="kpi t-green"><div class="kpi-lbl">Total Production<\/div><div class="kpi-val">'+fmt(totalProd)+' MT<\/div>'+
+      '<div class="kpi-sub">Sum for selected period<\/div><\/div>'+
+    '<div class="kpi t-blue"><div class="kpi-lbl">Peak Beneficiaries<\/div><div class="kpi-val">'+fmt(peakBeneV)+'<\/div>'+
+      '<div class="kpi-sub">'+(peakBeneM?'Highest monthly total: '+ml(peakBeneM):'No data')+'<\/div><\/div>'+
+    '<div class="kpi t-amber"><div class="kpi-lbl">Avg iCheck<\/div><div class="kpi-val">'+avgIch.toFixed(2)+'<\/div>'+
+      '<div class="kpi-sub">mg/kg \u2022 '+totIch+' records<\/div><\/div>'
+  );
+
+  // Range tiles
+  setHTML('ov-range',
+    '<div class="range-tile r-below"><div class="rt-val">'+blw+'<\/div><div class="rt-lbl">Below Range<\/div>'+
+      '<div class="rt-sub">&lt;14 mg/kg \u2022 '+pc(blw,totIch)+'%<\/div><\/div>'+
+    '<div class="range-tile r-within"><div class="rt-val">'+win+'<\/div><div class="rt-lbl">Within Range<\/div>'+
+      '<div class="rt-sub">14\u201321.25 mg/kg \u2022 '+pc(win,totIch)+'%<\/div><\/div>'+
+    '<div class="range-tile r-above"><div class="rt-val">'+abv+'<\/div><div class="rt-lbl">Above Range<\/div>'+
+      '<div class="rt-sub">&gt;21.25 mg/kg \u2022 '+pc(abv,totIch)+'%<\/div><\/div>'
+  );
+
+  // RCA: count Yes bits on OOR records
+  var oor=ir.filter(function(r){return r[F.ICHS]!==2;});
+  var rcaC=[0,0,0,0,0,0];
+  ir.forEach(function(r){for(var i=0;i<6;i++){if(r[F.RCA]&(1<<i))rcaC[i]++;}});
+  var rcaMax=Math.max.apply(null,rcaC.concat([1]));
+  var RL=D.rca_labels||['Human/Ops','Equipment','Microfeeder','Sampling','Premix','No Issue'];
+  var RC=['#e85c5c','#5b8cff','#f5a623','#22c07e','#a78bfa','#94a3b8'];
+  var rcaHtml='';
+  RL.forEach(function(lbl,i){
+    var pct=oor.length?Math.round(rcaC[i]/oor.length*100):0;
+    rcaHtml+='<div class="rca-row"><div class="rca-lbl">'+lbl+'<\/div>'+
+      '<div class="rca-bar-wrap"><div class="rca-bar" style="width:'+Math.round(rcaC[i]/rcaMax*100)+'%;background:'+RC[i]+'"><\/div><\/div>'+
+      '<div class="rca-val">'+rcaC[i]+'<\/div><div class="rca-pct">('+pct+'%)<\/div><\/div>';
+  });
+  var anyRca=rcaC.some(function(v){return v>0;});
+  setHTML('ov-rca',anyRca?rcaHtml:'<div style="padding:12px;background:#f8f9fc;border-radius:8px;font-size:13px;color:#888">RCA data not available in selected period.<\/div>');
+  if(anyRca){
+    var topI=rcaC.indexOf(Math.max.apply(null,rcaC));
+    setHTML('ov-rca-top','<span style="font-weight:600;color:#e85c5c">'+(RL[topI]||'-')+'<\/span> \u2014 '+
+      rcaC[topI]+' of '+(oor.length||0)+' OOR records ('+(oor.length?Math.round(rcaC[topI]/oor.length*100):0)+'%)');
+  } else {setHTML('ov-rca-top','');}
+
+  // Visit category split
+  var latNM={};
+  recs.forEach(function(r){
+    var mc=r[F.MILL];
+    if(!latNM[mc]||r[F.MONTH]>latNM[mc].mo)latNM[mc]={mo:r[F.MONTH],nm:r[F.NM]};
+  });
+  var nmC=0,moC=0;
+  Object.keys(latNM).forEach(function(k){if(latNM[k].nm===1)nmC++;else moC++;});
+  var nmIr=ir.filter(function(r){return latNM[r[F.MILL]]&&latNM[r[F.MILL]].nm===1;});
+  var moIr=ir.filter(function(r){return latNM[r[F.MILL]]&&latNM[r[F.MILL]].nm===0;});
+  var nmIn=nmIr.filter(function(r){return r[F.ICHS]===2;}).length;
+  var moIn=moIr.filter(function(r){return r[F.ICHS]===2;}).length;
+  var nmPct=nmIr.length?Math.round(nmIn/nmIr.length*100):0;
+  var moPct=moIr.length?Math.round(moIn/moIr.length*100):0;
+  setHTML('ov-visit',
+    '<div class="vc-card"><div class="vc-val">'+nmC+'<\/div><div class="vc-lbl">Non-Monthly Mills<\/div>'+
+      '<div class="vc-sub">'+nmPct+'% within range<\/div><\/div>'+
+    '<div class="vc-card"><div class="vc-val">'+moC+'<\/div><div class="vc-lbl">Monthly Mills<\/div>'+
+      '<div class="vc-sub">'+moPct+'% within range<\/div><\/div>'+
+    '<div class="vc-diff '+(nmPct>=moPct?'pos':'neg')+'">'+(nmPct>=moPct?'Non-Monthly outperforms':'Monthly outperforms')+
+      ' by '+(nmPct>=moPct?'+':'')+(nmPct-moPct)+'pp<\/div>'
+  );
+
+  // Monthly production chart
+  var mp={};
+  pr.forEach(function(r){var m=D.months[r[F.MONTH]];if(m)mp[m]=(mp[m]||0)+r[F.PROD];});
+  var cmk=Object.keys(mp).sort();
+  kc('ov-chart');
+  var el=document.getElementById('ov-chart');
+  if(el){
+    charts['ov-chart']=new Chart(el.getContext('2d'),{
+      type:'line',
+      data:{labels:cmk.map(ml),datasets:[{
+        label:'Production (MT)',
+        data:cmk.map(function(m){return Math.round(mp[m]);}),
+        borderColor:'#6c63ff',backgroundColor:'rgba(108,99,255,.08)',
+        tension:0.4,pointRadius:2,fill:true,borderWidth:2
+      }]},
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return fmt(c.raw)+' MT';}}}},
+        scales:{
+          y:{beginAtZero:true,grid:{color:'rgba(0,0,0,.04)'},ticks:{callback:function(v){return fmt(v)+' MT';}}},
+          x:{ticks:{maxTicksLimit:12,maxRotation:45,font:{size:10}},grid:{display:false}}
+        },
+        animation:{duration:250}
+      }
+    });
+  }
+}
+
+
+// ==================== PRODUCTION ====================
+function renderProduction(recs) {
+  var pr=recs.filter(function(r){return r[F.PROD]!=null&&r[F.PROD]>0;});
+
+  if(!pr.length){
+    setHTML('prod-insights','<div class="no-data">No production data for selected filters.<\/div>');
+    return;
+  }
+
+  // Monthly totals
+  var mp={};
+  pr.forEach(function(r){var m=D.months[r[F.MONTH]];if(m)mp[m]=(mp[m]||0)+r[F.PROD];});
+  var mk=Object.keys(mp).sort();
+
+  // Key insights
+  var h1=mk.slice(0,Math.floor(mk.length/2)),h2=mk.slice(Math.floor(mk.length/2));
+  var avg1=h1.length?h1.reduce(function(s,m){return s+mp[m];},0)/h1.length:0;
+  var avg2=h2.length?h2.reduce(function(s,m){return s+mp[m];},0)/h2.length:0;
+  var hhc=avg1?Math.round((avg2-avg1)/avg1*100):0;
+  var lm=mk[mk.length-1],last=mp[lm]||0,avg=mk.reduce(function(s,m){return s+mp[m];},0)/mk.length;
+  var lmDiff=avg?Math.round((last-avg)/avg*100):0;
+
+  var insHtml='<div class="insight '+(hhc>=0?'green':'amber')+'"><div>'+
+    '<div class="insight-title">Half-over-half: '+(hhc>=0?'+':'')+hhc+'%<\/div>'+
+    '<div class="insight-body">Avg production '+(hhc>=0?'grew':'fell')+' from <b>'+fmt(avg1)+' MT<\/b> to <b>'+fmt(avg2)+' MT<\/b> across the selected period.<\/div><\/div><\/div>';
+  insHtml+='<div class="insight '+(lmDiff>=0?'blue':'amber')+'"><div>'+
+    '<div class="insight-title">'+ml(lm)+': '+fmt(last)+' MT ('+(lmDiff>=0?'+':'')+lmDiff+'% vs period avg)<\/div>'+
+    '<div class="insight-body">Period average: <b>'+fmt(avg)+' MT\/month<\/b>. Latest reported month total.<\/div><\/div><\/div>';
+  setHTML('prod-insights',insHtml);
+
+  // Production Volume Over Time chart
+  kc('prod-chart');
+  var el=document.getElementById('prod-chart');
+  if(el){charts['prod-chart']=new Chart(el.getContext('2d'),{
+    type:'line',
+    data:{labels:mk.map(ml),datasets:[{
+      label:'Production (MT)',data:mk.map(function(m){return Math.round(mp[m]);}),
+      borderColor:'#6c63ff',backgroundColor:'rgba(108,99,255,.08)',tension:0.4,pointRadius:2,fill:true,borderWidth:2
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:250},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return fmt(c.raw)+' MT';}}}},
+      scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,.04)'},ticks:{callback:function(v){return fmt(v)+' MT';}}},
+        x:{ticks:{maxTicksLimit:12,maxRotation:45,font:{size:10}},grid:{display:false}}}}
+  });}
+  setHTML('prod-note',mk.length?ml(lm)+': '+fmt(last)+' MT vs period avg '+fmt(avg)+' MT ('+(lmDiff>=0?'+':'')+lmDiff+'%)':'');
+
+  // Seasonal Production: MEDIAN per mill per calendar month per year (excl zeros)
+  var seasonRaw={};
+  pr.forEach(function(r){
+    var m=D.months[r[F.MONTH]];if(!m||!r[F.PROD])return;
+    var yr=m.slice(0,4),mo=+m.slice(5,7)-1;
+    var key=yr+'-'+mo;
+    if(!seasonRaw[key])seasonRaw[key]=[];
+    seasonRaw[key].push(r[F.PROD]);
+  });
+  function median(arr){
+    if(!arr||!arr.length)return null;
+    var s=arr.slice().sort(function(a,b){return a-b;});
+    var mid=Math.floor(s.length/2);
+    return s.length%2?s[mid]:Math.round((s[mid-1]+s[mid])/2);
+  }
+  var seasonData={};
+  Object.keys(seasonRaw).forEach(function(k){
+    var parts=k.split('-'),yr=parts[0],mo=+parts[1];
+    if(!seasonData[yr])seasonData[yr]=new Array(12).fill(null);
+    seasonData[yr][mo]=median(seasonRaw[k]);
+  });
+  var years=Object.keys(seasonData).sort();
+  var YCOLS={'2022':'#94a3b8','2023':'#60a5fa','2024':'#6c63ff','2025':'#22c07e','2026':'#f5a623'};
+  var MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var sDatasets=years.map(function(yr){
+    return{label:yr,data:seasonData[yr],
+      borderColor:YCOLS[yr]||'#aaa',backgroundColor:'transparent',
+      tension:0.4,pointRadius:4,borderWidth:2,spanGaps:false};
+  });
+  kc('season-chart');
+  var sel=document.getElementById('season-chart');
+  if(sel){charts['season-chart']=new Chart(sel.getContext('2d'),{
+    type:'line',
+    data:{labels:MN,datasets:sDatasets},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:250},
+      plugins:{legend:{display:true,position:'top',labels:{boxWidth:12,font:{size:11}}},
+        tooltip:{callbacks:{title:function(items){return items[0].dataset.label+' - '+MN[items[0].dataIndex];},
+          label:function(c){return c.raw!=null?fmt(c.raw)+' MT/mill (median)':'No data';}}}},
+      scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,.04)'},ticks:{callback:function(v){return fmt(v)+' MT';}}},
+        x:{grid:{color:'rgba(0,0,0,.04)'}}}}
+  });}
+
+  // Production Action Flags: filtered records
+  // Rule: compare current month production vs Avg3M column (avg of 3 months before current)
+  // % deviation = (Production - Avg3M) / Avg3M * 100
+  renderProdFlags();
+}
+
+
+// ==================== iCHECK ====================
+function renderICheck(recs) {
+  var ir = recs.filter(function(r){ return r[F.ICHECK] != null; });
+
+  if(!ir.length){
+    setHTML('ich-insights','<div class="no-data">No iCheck data for selected filters.<\/div>');
+    return;
+  }
+
+  // ── Monthly counts: within / below / above ────────────────────────────────
+  var mBelow={}, mWithin={}, mAbove={}, mAvg={}, mCount={};
+  ir.forEach(function(r){
+    var m = D.months[r[F.MONTH]]; if(!m) return;
+    if(!mBelow[m]){ mBelow[m]=0; mWithin[m]=0; mAbove[m]=0; mAvg[m]=0; mCount[m]=0; }
+    if(r[F.ICHS]===1)       mBelow[m]++;
+    else if(r[F.ICHS]===2)  mWithin[m]++;
+    else if(r[F.ICHS]>=3)   mAbove[m]++;
+    mAvg[m]   += r[F.ICHECK];
+    mCount[m] ++;
+  });
+  var mk = Object.keys(mBelow).sort();
+
+  // ── Detect incomplete latest month (reporting lag) ────────────────────────
+  var avgCount = mk.length > 1
+    ? mk.slice(0,-1).reduce(function(s,m){return s+mCount[m];},0)/(mk.length-1)
+    : 0;
+  var threshold = avgCount * 0.3;
+  var lastCompleteIdx = mk.length-1;
+  for(var ci=mk.length-1;ci>=0;ci--){
+    if(mCount[mk[ci]] >= threshold){ lastCompleteIdx=ci; break; }
+  }
+  var latestIsIncomplete = lastCompleteIdx < mk.length-1;
+  var firstM  = mk[0]||'';
+  var lastM   = mk[lastCompleteIdx]||'';
+  var latestM = mk[mk.length-1]||'';
+  var latestCount = mCount[latestM]||0;
+
+  // ── Key insights ──────────────────────────────────────────────────────────
+  var firstTotal  = (mBelow[firstM]||0)+(mWithin[firstM]||0)+(mAbove[firstM]||0);
+  var lastTotal   = (mBelow[lastM] ||0)+(mWithin[lastM] ||0)+(mAbove[lastM] ||0);
+  var firstPct    = firstTotal ? Math.round((mWithin[firstM]||0)/firstTotal*100) : 0;
+  var lastPct     = lastTotal  ? Math.round((mWithin[lastM] ||0)/lastTotal *100) : 0;
+  var improving   = lastPct >= firstPct;
+
+  var insHtml = '<div class="insight '+(improving?'green':'amber')+'"><div>'+
+    '<div class="insight-title">Quality '+(improving?'improving':'declining')+
+    ' ('+(lastPct-firstPct>=0?'+':'')+(lastPct-firstPct)+'pp)'+
+    ' <span style="font-size:11px;font-weight:400;color:#888">'+(firstM?ml(firstM):'')+' \u2192 '+(lastM?ml(lastM):'')+'<\/span><\/div>'+
+    '<div class="insight-body">Within-range rate '+(improving?'rose':'fell')+
+    ' from <b>'+firstPct+'%<\/b> ('+ml(firstM)+') to <b>'+lastPct+'%<\/b> ('+ml(lastM)+').'+
+    (latestIsIncomplete?' <span style="color:#f5a623;font-size:11.5px">Note: '+ml(latestM)+' excluded \u2014 only '+latestCount+' records (reporting lag).<\/span>':'')+
+    '<\/div><\/div><\/div>';
+
+  // Persistent OOR mills (3+ consecutive months)
+  var persistOOR=[];
+  var millLatest={};
+  ir.forEach(function(r){
+    var mc=r[F.MILL];
+    if(!millLatest[mc]||r[F.MONTH]>millLatest[mc].mo)
+      millLatest[mc]={mo:r[F.MONTH],ichs:r[F.ICHS],ich:r[F.ICHECK],m:D.months[r[F.MONTH]]};
+  });
+  // Calculate streak per mill using filtered records
+  var millRecords={};
+  ir.forEach(function(r){
+    var mc=r[F.MILL];
+    if(!millRecords[mc])millRecords[mc]=[];
+    millRecords[mc].push({mo:r[F.MONTH],ichs:r[F.ICHS]});
+  });
+  Object.keys(millRecords).forEach(function(mc){
+    var sorted=millRecords[mc].sort(function(a,b){return b.mo-a.mo;});
+    var streak=0;
+    for(var i=0;i<sorted.length;i++){
+      if(sorted[i].ichs!==2)streak++;
+      else break;
+    }
+    if(streak>=3)persistOOR.push({mc:+mc,streak:streak});
+  });
+  if(persistOOR.length){
+    insHtml+='<div class="insight red"><div>'+
+      '<div class="insight-title">'+persistOOR.length+' mill'+(persistOOR.length>1?'s':'')+' persistently out of range (3+ months)<\/div>'+
+      '<div class="insight-body">'+persistOOR.sort(function(a,b){return b.streak-a.streak;}).slice(0,3)
+        .map(function(p){return (D.mill_names[D.mills[p.mc]]||D.mills[p.mc])+' ('+p.streak+' months)';}).join(', ')+
+        (persistOOR.length>3?' +'+(persistOOR.length-3)+' more':'')+
+      '<\/div><\/div><\/div>';
+  }
+  if(latestIsIncomplete){
+    insHtml+='<div class="insight amber"><div>'+
+      '<div class="insight-title">'+ml(latestM)+' has incomplete data \u2014 excluded from trend<\/div>'+
+      '<div class="insight-body">Only <b>'+latestCount+' iCheck records<\/b> for '+ml(latestM)+
+      ' vs avg ~<b>'+Math.round(avgCount)+'<\/b>/month. Normal reporting lag. Analysis uses data through <b>'+ml(lastM)+'<\/b>.<\/div><\/div><\/div>';
+  }
+  setHTML('ich-insights', insHtml);
+
+  // ── Within/Below/Above Range Over Time chart ──────────────────────────────
+  // Simple count of iCheck reports per month in each range
+  // Convert to percentages
+  var mWinPct={},mBlwPct={},mAbvPct={};
+  mk.forEach(function(m){
+    var tot=(mWithin[m]||0)+(mBelow[m]||0)+(mAbove[m]||0);
+    mWinPct[m]=tot?Math.round((mWithin[m]||0)/tot*100):null;
+    mBlwPct[m]=tot?Math.round((mBelow[m]||0)/tot*100):null;
+    mAbvPct[m]=tot?Math.round((mAbove[m]||0)/tot*100):null;
+  });
+  kc('ich-range-chart');
+  var rcel = document.getElementById('ich-range-chart');
+  if(rcel){
+    charts['ich-range-chart']=new Chart(rcel.getContext('2d'),{
+      type:'line',
+      data:{
+        labels:mk.map(ml),
+        datasets:[
+          {label:'Within Range',data:mk.map(function(m){return mWinPct[m];}),
+           borderColor:'#22c07e',backgroundColor:'rgba(34,192,126,.08)',tension:0.4,pointRadius:2,borderWidth:2,fill:false,spanGaps:true},
+          {label:'Above Range',data:mk.map(function(m){return mAbvPct[m];}),
+           borderColor:'#e85c5c',backgroundColor:'transparent',tension:0.4,pointRadius:2,borderWidth:2,borderDash:[4,3],fill:false,spanGaps:true},
+          {label:'Below Range',data:mk.map(function(m){return mBlwPct[m];}),
+           borderColor:'#f5a623',backgroundColor:'transparent',tension:0.4,pointRadius:2,borderWidth:2,borderDash:[4,3],fill:false,spanGaps:true}
+        ]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,animation:{duration:250},
+        plugins:{legend:{display:true,position:'top',labels:{boxWidth:12,font:{size:11}}},
+          tooltip:{callbacks:{label:function(c){
+            var m=mk[c.dataIndex];var tot=(mWithin[m]||0)+(mBelow[m]||0)+(mAbove[m]||0);
+            return c.dataset.label+': '+c.raw+'% ('+( c.datasetIndex===0?mWithin[m]:c.datasetIndex===1?mAbove[m]:mBelow[m])+' of '+tot+' records)';
+          }}}},
+        scales:{
+          y:{beginAtZero:true,max:100,grid:{color:'rgba(0,0,0,.04)'},
+            title:{display:true,text:'% of iCheck Records'},
+            ticks:{callback:function(v){return v+'%';}}},
+          x:{ticks:{maxTicksLimit:12,maxRotation:45,font:{size:10}},grid:{display:false}}
+        }
+      }
+    });
+  }
+
+  // ── Average iCheck Score Over Time chart ──────────────────────────────────
+  var avgVals = mk.map(function(m){ return mCount[m]?Math.round((mAvg[m]/mCount[m])*100)/100:null; });
+  kc('ich-avg-chart');
+  var ael = document.getElementById('ich-avg-chart');
+  if(ael){
+    charts['ich-avg-chart']=new Chart(ael.getContext('2d'),{
+      type:'line',
+      data:{
+        labels:mk.map(ml),
+        datasets:[
+          {label:'Avg iCheck',data:avgVals,borderColor:'#6c63ff',
+           backgroundColor:'rgba(108,99,255,.08)',tension:0.4,pointRadius:3,borderWidth:2,fill:false},
+          {label:'Upper limit (21.25)',data:mk.map(function(){return 21.25;}),
+           borderColor:'rgba(232,92,92,.4)',borderDash:[6,4],pointRadius:0,borderWidth:1.5},
+          {label:'Lower limit (14)',data:mk.map(function(){return 14;}),
+           borderColor:'rgba(245,166,35,.4)',borderDash:[6,4],pointRadius:0,borderWidth:1.5}
+        ]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,animation:{duration:250},
+        plugins:{legend:{display:true,position:'top',labels:{boxWidth:12,font:{size:11},
+          filter:function(item){return item.text==='Avg iCheck';}}},
+          tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+c.raw+' mg/kg';}}}},
+        scales:{
+          y:{min:0,max:30,grid:{color:'rgba(0,0,0,.04)'},title:{display:true,text:'mg/kg'},
+            ticks:{callback:function(v){return v+' mg/kg';}}},
+          x:{ticks:{maxTicksLimit:12,maxRotation:45,font:{size:10}},grid:{display:false}}
+        }
+      }
+    });
+  }
+  // Update sub-label
+  var ichTrendNote=document.getElementById('ich-trend-note');
+  if(ichTrendNote){ichTrendNote.textContent='Analysis: '+(firstM?ml(firstM):'')+' \u2192 '+(lastM?ml(lastM):'')+'.'+(latestIsIncomplete?' '+ml(latestM)+' excluded (only '+latestCount+' records \u2014 reporting lag).':'');}
+
+  // ── iCheck Score Distribution (4 buckets) ─────────────────────────────────
+  var b14=0, b1421=0, b2128=0, b28=0;
+  ir.forEach(function(r){
+    var v=r[F.ICHECK];
+    if(v<14)b14++;
+    else if(v<=21.25)b1421++;
+    else if(v<=28)b2128++;
+    else b28++;
+  });
+  var totDist=b14+b1421+b2128+b28;
+  var distLabels=['Below 14','14 to 21.25 (In Range)','21.26 to 28','Above 28'];
+  var distVals=[b14,b1421,b2128,b28];
+  var distCols=['#f5a623','#22c07e','#e85c5c','#7b1d1d'];
+  kc('ich-dist-chart');
+  var del=document.getElementById('ich-dist-chart');
+  if(del){
+    charts['ich-dist-chart']=new Chart(del.getContext('2d'),{
+      type:'bar',
+      data:{
+        labels:distLabels,
+        datasets:[{label:'Records',data:distVals,backgroundColor:distCols,borderRadius:4}]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,animation:{duration:250},
+        plugins:{legend:{display:false},
+          tooltip:{callbacks:{label:function(c){return c.raw+' records ('+(totDist?Math.round(c.raw/totDist*100):0)+'%)';}}}},
+        scales:{
+          y:{beginAtZero:true,grid:{color:'rgba(0,0,0,.04)'},title:{display:true,text:'Number of Records'}},
+          x:{grid:{display:false}}
+        }
+      }
+    });
+  }
+
+  // ── iCheck Action Flags table (own filters, not global) ───────────────────
+  renderIchFlags();
+}
+
+
+// ==================== DRIVERS ====================
+function renderDrivers(recs) {
+  var ir  = recs.filter(function(r){ return r[F.ICHECK]!=null; });
+  var oor = ir.filter(function(r){ return r[F.ICHS]!==2; });
+
+  if(!ir.length){
+    setHTML('driver-insight','<div class="no-data">No iCheck data for selected filters.<\/div>');
+    return;
+  }
+
+  var RL = D.rca_labels||['Human/Ops','Equipment','Microfeeder','Sampling','Premix','No Issue'];
+  var RC = ['#e85c5c','#5b8cff','#f5a623','#22c07e','#a78bfa','#94a3b8'];
+
+  // ── RCA counts on OOR records ─────────────────────────────────────────────
+  var rcaC=[0,0,0,0,0,0];
+  // RCA counted across ALL iCheck records (not just OOR) - matches sheet calculation
+  ir.forEach(function(r){ for(var i=0;i<6;i++){ if(r[F.RCA]&(1<<i)) rcaC[i]++; } });
+  var rcaMax=Math.max.apply(null,rcaC.concat([1]));
+  var anyRca=rcaC.some(function(v){return v>0;});
+
+  // Key insight
+  var topI=rcaC.indexOf(rcaMax);
+  var insText = anyRca
+    ? '<b>'+(RL[topI]||'')+'<\/b> is the top OOR driver: <b>'+rcaMax+'<\/b> of '+oor.length+' OOR records ('+
+      (oor.length?Math.round(rcaMax/oor.length*100):0)+'%)'
+    : 'No RCA data available for selected period. RCA columns in sheet show \u2018NA\u2019.';
+  setHTML('driver-insight', insText);
+
+  // ── RCA Breakdown: combined chart + table in one card (no redundancy) ───────
+  kc('rca-chart');
+  var rcel=document.getElementById('rca-chart');
+  if(rcel && anyRca){
+    charts['rca-chart']=new Chart(rcel.getContext('2d'),{
+      type:'bar',
+      data:{
+        labels:RL,
+        datasets:[{label:'iCheck Records',data:rcaC,backgroundColor:RC,borderRadius:4}]
+      },
+      options:{
+        indexAxis:'y',responsive:true,maintainAspectRatio:false,animation:{duration:250},
+        plugins:{legend:{display:false},
+          tooltip:{callbacks:{label:function(c){
+            var pct=ir.length?Math.round(c.raw/ir.length*100):0;
+            return c.raw+' records ('+pct+'% of all iCheck)';
+          }}}},
+        scales:{
+          x:{beginAtZero:true,grid:{color:'rgba(0,0,0,.04)'},title:{display:true,text:'Records with this RCA factor'}},
+          y:{grid:{display:false}}
+        }
+      }
+    });
+  } else if(rcel){
+    rcel.parentElement.innerHTML='<div style="padding:16px;color:#aaa;font-size:13px">RCA data not available in current period.<\/div>';
+  }
+
+  // Factor table — replaces the separate factor-assoc card with detail rows
+  var faHtml='<table class="dt" style="margin-top:12px"><thead><tr>'+
+    '<th>RCA Factor<\/th><th>Records<\/th><th>% of iCheck<\/th><th>% of OOR<\/th><th>Impact<\/th>'+
+    '<\/tr><\/thead><tbody>';
+  RL.forEach(function(lbl,i){
+    var n=rcaC[i];
+    var pctAll=ir.length?Math.round(n/ir.length*100):0;
+    var pctOOR=oor.length?Math.round(n/oor.length*100):0;
+    var impact=pctOOR>50?'Very High':pctOOR>25?'High':pctOOR>10?'Medium':'Low';
+    var icol=pctOOR>50?'#e85c5c':pctOOR>25?'#f5a623':pctOOR>10?'#5b8cff':'#94a3b8';
+    var barW=rcaMax?Math.round(n/rcaMax*100):0;
+    faHtml+='<tr>'+
+      '<td style="min-width:150px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+RC[i]+';margin-right:6px"><\/span>'+lbl+'<\/td>'+
+      '<td style="font-weight:700">'+n+'<\/td>'+
+      '<td><div style="display:flex;align-items:center;gap:6px">'+
+        '<div style="width:60px;height:6px;background:#f0f0f5;border-radius:3px;overflow:hidden">'+
+          '<div style="width:'+barW+'%;height:100%;background:'+RC[i]+';border-radius:3px"><\/div><\/div>'+
+        '<span>'+pctAll+'%<\/span><\/div><\/td>'+
+      '<td>'+pctOOR+'%<\/td>'+
+      '<td><span class="badge" style="background:'+icol+'22;color:'+icol+';border:1px solid '+icol+'44">'+impact+'<\/span><\/td>'+
+      '<\/tr>';
+  });
+  faHtml+='<\/tbody><\/table>';
+  setHTML('factor-assoc', faHtml);
+
+  // ── iCheck by Launch Age ──────────────────────────────────────────────────
+  // % in range per age bucket + avg iCheck trendline
+  var AGE_LABELS=D.age_labels||['0-2 months','2-4 months','4-6 months','6-12 months','12-24 months','24+ months'];
+  var nAge=AGE_LABELS.length;
+  var ageIn=new Array(nAge).fill(0),ageTot=new Array(nAge).fill(0),ageSum=new Array(nAge).fill(0);
+  ir.forEach(function(r){
+    var a=r[F.AGE];
+    if(a>=0&&a<nAge){
+      ageTot[a]++;
+      if(r[F.ICHS]===2)ageIn[a]++;
+      ageSum[a]+=r[F.ICHECK];
+    }
+  });
+  var agePct=ageTot.map(function(t,i){return t?Math.round(ageIn[i]/t*100):0;});
+  var ageAvg=ageTot.map(function(t,i){return t?Math.round(ageSum[i]/t*100)/100:null;});
+
+  kc('age-chart');
+  var agel=document.getElementById('age-chart');
+  if(agel){
+    charts['age-chart']=new Chart(agel.getContext('2d'),{
+      type:'bar',
+      data:{
+        labels:AGE_LABELS,
+        datasets:[
+          {label:'% In Range',data:agePct,backgroundColor:'rgba(108,99,255,.7)',
+           borderRadius:4,yAxisID:'y'},
+          {label:'Avg iCheck',data:ageAvg,type:'line',
+           borderColor:'#f5a623',backgroundColor:'transparent',
+           tension:0.4,pointRadius:5,borderWidth:2,yAxisID:'y2'}
+        ]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,animation:{duration:250},
+        plugins:{legend:{display:true,position:'top',labels:{boxWidth:12,font:{size:11}}},
+          tooltip:{callbacks:{label:function(c){
+            return c.dataset.label+': '+(c.datasetIndex===0?c.raw+'%':c.raw+' mg/kg');
+          }}}},
+        scales:{
+          y:{beginAtZero:true,max:100,grid:{color:'rgba(0,0,0,.04)'},
+            title:{display:true,text:'% Within Range'},
+            ticks:{callback:function(v){return v+'%';}}},
+          y2:{position:'right',min:0,max:30,grid:{display:false},
+            title:{display:true,text:'Avg iCheck (mg/kg)'},
+            ticks:{callback:function(v){return v+' mg/kg';}}},
+          x:{grid:{display:false}}
+        }
+      }
+    });
+  }
+
+  // ── iCheck by Mill Capacity ───────────────────────────────────────────────
+  // Number of in-range records per capacity tier
+  var CAP_LABELS=D.cap_cats||['Below 100 MT/Month','100-300 MT/Month','300-1000 MT/Month','More than 1000 MT/ Month'];
+  var capIn=[0,0,0,0],capTot=[0,0,0,0];
+  ir.forEach(function(r){
+    var c=r[F.CAP];
+    if(c>=0&&c<=3){ capTot[c]++; if(r[F.ICHS]===2)capIn[c]++; }
+  });
+  var capPct=capTot.map(function(t,i){return t?Math.round(capIn[i]/t*100):0;});
+  var capCols=['#94a3b8','#60a5fa','#6c63ff','#22c07e'];
+
+  kc('cap-chart');
+  var capl=document.getElementById('cap-chart');
+  if(capl){
+    charts['cap-chart']=new Chart(capl.getContext('2d'),{
+      type:'bar',
+      data:{
+        labels:CAP_LABELS.map(function(c){return c.replace(' MT/Month','').replace('More than','> ');}),
+        datasets:[{
+          label:'% Within Range',
+          data:capPct,
+          backgroundColor:capCols,
+          borderRadius:4
+        }]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,animation:{duration:250},
+        plugins:{legend:{display:false},
+          tooltip:{callbacks:{label:function(c){
+            var i=c.dataIndex;
+            return capPct[i]+'% within range ('+capIn[i]+' of '+capTot[i]+' records)';
+          }}}},
+        scales:{
+          y:{beginAtZero:true,max:100,grid:{color:'rgba(0,0,0,.04)'},
+            title:{display:true,text:'% Within Range'},
+            ticks:{callback:function(v){return v+'%';}}},
+          x:{grid:{display:false}}
+        }
+      }
+    });
+  }
+
+  // ── Quality Officer Performance table ────────────────────────────────────
+  var qoData={};
+  ir.forEach(function(r){
+    var qi=r[F.QO]; if(qi<0) return;
+    var qn=D.qos[qi]; if(!qn) return;
+    if(!qoData[qn])qoData[qn]={tot:0,inr:0,sum:0};
+    qoData[qn].tot++;
+    if(r[F.ICHS]===2)qoData[qn].inr++;
+    qoData[qn].sum+=r[F.ICHECK];
+  });
+  var qoRows=Object.keys(qoData)
+    .filter(function(q){return qoData[q].tot>=5;})
+    .map(function(q){
+      var d=qoData[q];
+      return {name:q,tot:d.tot,inr:d.inr,
+        pct:Math.round(d.inr/d.tot*100),
+        avg:Math.round(d.sum/d.tot*100)/100};
+    })
+    .sort(function(a,b){return b.pct-a.pct;});
+
+  var qoHtml='<table class="dt" style="width:100%"><thead><tr>'+
+    '<th>Quality Officer<\/th><th>iCheck Records<\/th><th>In Range<\/th>'+
+    '<th>Within Range %<\/th><th>Avg iCheck<\/th>'+
+    '<\/tr><\/thead><tbody>';
+  qoRows.forEach(function(r){
+    var col=r.pct>=80?'#22c07e':r.pct>=65?'#f5a623':'#e85c5c';
+    var barW=r.pct;
+    qoHtml+='<tr>'+
+      '<td style="font-weight:600;white-space:nowrap">'+r.name+'<\/td>'+
+      '<td style="text-align:center">'+r.tot+'<\/td>'+
+      '<td style="text-align:center">'+r.inr+'<\/td>'+
+      '<td><div style="display:flex;align-items:center;gap:8px">'+
+        '<div style="flex:1;height:8px;background:#f0f0f5;border-radius:4px;overflow:hidden">'+
+          '<div style="width:'+barW+'%;height:100%;background:'+col+';border-radius:4px"><\/div><\/div>'+
+        '<span style="font-weight:700;color:'+col+';min-width:36px">'+r.pct+'%<\/span><\/div><\/td>'+
+      '<td style="color:#888;font-size:12px">'+r.avg+' mg/kg<\/td>'+
+      '<\/tr>';
+  });
+  qoHtml+='<\/tbody><\/table>';
+  setHTML('qo-table', qoHtml);
+}
+
+
+// ==================== VISIT CATEGORY ====================
+function renderVisitCat(recs) {
+  var ir = recs.filter(function(r){ return r[F.ICHECK]!=null; });
+  var pr = recs.filter(function(r){ return r[F.PROD]!=null && r[F.PROD]>0; });
+
+  // ── Latest NM status per mill in filtered period ──────────────────────────
+  var latNM={};
+  recs.forEach(function(r){
+    var mc=r[F.MILL];
+    if(!latNM[mc]||r[F.MONTH]>latNM[mc].mo) latNM[mc]={mo:r[F.MONTH],nm:r[F.NM]};
+  });
+  var nmSet=new Set(), moSet=new Set();
+  Object.keys(latNM).forEach(function(k){
+    if(latNM[k].nm===1) nmSet.add(+k); else moSet.add(+k);
+  });
+
+  function calcStats(millSet){
+    var ich=ir.filter(function(r){return millSet.has(r[F.MILL]);});
+    var prd=pr.filter(function(r){return millSet.has(r[F.MILL]);});
+    var pd=recs.filter(function(r){return millSet.has(r[F.MILL])&&r[F.PDEV]!=null;});
+    var tot=ich.length;
+    var win=ich.filter(function(r){return r[F.ICHS]===2;}).length;
+    var blw=ich.filter(function(r){return r[F.ICHS]===1;}).length;
+    var winPct=tot?Math.round(win/tot*100):0;
+    var blwPct=tot?Math.round(blw/tot*100):0;
+    var avgIch=tot?Math.round(ich.reduce(function(s,r){return s+r[F.ICHECK];},0)/tot*100)/100:0;
+    // Consistent mills: all iCheck records in range
+    var millIch={};
+    ich.forEach(function(r){
+      var mc=r[F.MILL];
+      if(!millIch[mc])millIch[mc]={tot:0,win:0};
+      millIch[mc].tot++; if(r[F.ICHS]===2)millIch[mc].win++;
+    });
+    var millCount=Object.keys(millIch).length;
+    var consCount=Object.keys(millIch).filter(function(mc){return millIch[mc].tot===millIch[mc].win;}).length;
+    var consPct=millCount?Math.round(consCount/millCount*100):0;
+    // Median prod dev
+    var devs=pd.map(function(r){return r[F.PDEV];}).sort(function(a,b){return a-b;});
+    var medDev=devs.length?Math.round(devs[Math.floor(devs.length/2)]*10)/10:0;
+    // Avg prod per mill per month
+    var monthProd={};
+    prd.forEach(function(r){var m=r[F.MONTH];if(!monthProd[m])monthProd[m]=0;monthProd[m]+=r[F.PROD];});
+    var monthVals=Object.values(monthProd);
+    var avgProd=monthVals.length?Math.round(monthVals.reduce(function(s,v){return s+v;},0)/monthVals.length):0;
+    return {mills:millSet.size,tot:tot,win:win,blw:blw,winPct:winPct,blwPct:blwPct,
+            avgIch:avgIch,consPct:consPct,medDev:medDev,avgProd:avgProd};
+  }
+
+  var ns=calcStats(nmSet), ms=calcStats(moSet);
+
+  // ── KPI comparison cards ──────────────────────────────────────────────────
+  function cmpCard(label,nmVal,moVal,unit,higherIsBetter){
+    var diff=typeof nmVal==='number'&&typeof moVal==='number'?Math.round((nmVal-moVal)*10)/10:null;
+    var better=diff!=null?(higherIsBetter?diff>0:diff<0):false;
+    var col=diff===0||diff===null?'#888':better?'#22c07e':'#e85c5c';
+    var sign=diff!=null&&diff>0?'+':'';
+    return '<div class="cmp-card">'+
+      '<div class="cmp-lbl">'+label+'<\/div>'+
+      '<div class="cmp-row">'+
+        '<div class="cmp-side"><div class="cmp-tag nm">NM<\/div><div class="cmp-val">'+nmVal+(unit||'')+'<\/div><\/div>'+
+        '<div class="cmp-mid" style="color:'+col+'">'+(diff!=null?sign+diff+(unit||''):'\u2014')+'<\/div>'+
+        '<div class="cmp-side"><div class="cmp-tag mo">M<\/div><div class="cmp-val">'+moVal+(unit||'')+'<\/div><\/div>'+
+      '<\/div>'+
+    '<\/div>';
+  }
+  function metricTile(lbl,val,cls,sub){
+    return '<div class="vc-metric">'+
+      '<div class="vc-metric-lbl">'+lbl+'<\/div>'+
+      '<div class="vc-metric-val '+(cls||'')+'">'+val+'<\/div>'+
+      (sub?'<div class="vc-metric-sub">'+sub+'<\/div>':'')+
+    '<\/div>';
+  }
+  // Label showing what period the split is based on
+  var latestMonthStr='';
+  Object.keys(latNM).forEach(function(mc){var m=D.months[latNM[mc].mo];if(m&&m>latestMonthStr)latestMonthStr=m;});
+  var asOfLabel=latestMonthStr?'As of '+ml(latestMonthStr):'in selected period';
+
+  var cardsHtml=
+    '<div class="vc-group-card">'+
+      '<div class="vc-group-head nm-head">● Non-Monthly Visit Mills<\/div>'+
+      '<div class="vc-group-count nm">'+ns.mills+'<\/div>'+
+      '<div style="font-size:11px;color:#888;padding:0 18px 10px">'+(ns.mills===0?'No NM mills in period — program started Aug 2025':asOfLabel)+'<\/div>'+
+      '<div class="vc-metrics">'+
+        metricTile('Within Range',ns.winPct+'%','green',ns.win+' of '+ns.tot+' records')+
+        metricTile('Avg iCheck',ns.avgIch+' mg/kg','','')+
+        metricTile('Consistent Mills',ns.consPct+'%','purple','100% in-range all months')+
+        metricTile('Below Range',ns.blwPct+'%','amber',ns.blw+' records')+
+        metricTile('Median Prod Dev',ns.medDev+'%','','')+
+        metricTile('iCheck Records',ns.tot,'','')+
+      '<\/div>'+
+    '<\/div>'+
+    '<div class="vc-group-card">'+
+      '<div class="vc-group-head mo-head">● Monthly Visit Mills<\/div>'+
+      '<div class="vc-group-count mo">'+ms.mills+'<\/div>'+
+      '<div style="font-size:11px;color:#888;padding:0 18px 10px">'+asOfLabel+'<\/div>'+
+      '<div class="vc-metrics">'+
+        metricTile('Within Range',ms.winPct+'%','green',ms.win+' of '+ms.tot+' records')+
+        metricTile('Avg iCheck',ms.avgIch+' mg/kg','','')+
+        metricTile('Consistent Mills',ms.consPct+'%','purple','100% in-range all months')+
+        metricTile('Below Range',ms.blwPct+'%','amber',ms.blw+' records')+
+        metricTile('Median Prod Dev',ms.medDev+'%','','')+
+        metricTile('iCheck Records',ms.tot,'','')+
+      '<\/div>'+
+    '<\/div>';
+  setHTML('vc-cards', cardsHtml);
+
+  // ── Head-to-Head table ─────────────────────────────────────────────────────
+  function delta(nmV,moV,unit,higherIsBetter){
+    if(typeof nmV!=='number'||typeof moV!=='number') return '\u2014';
+    var d=Math.round((nmV-moV)*10)/10;
+    var better=higherIsBetter?d>0:d<0;
+    var col=d===0?'#888':better?'#22c07e':'#e85c5c';
+    return '<span style="color:'+col+';font-weight:700">'+(d>0?'+':'')+d+(unit||'')+'<\/span>';
+  }
+  var hthHtml='<table class="dt" style="width:100%"><thead><tr>'+
+    '<th>Metric<\/th><th>Non-Monthly<\/th><th>Monthly<\/th><th>Delta (NM vs M)<\/th>'+
+    '<\/tr><\/thead><tbody>';
+  var hthRows=[
+    ['Mills',ns.mills,ms.mills,'',true],
+    ['Within Range %',ns.winPct+'%',ms.winPct+'%','%',true],
+    ['Avg iCheck (mg/kg)',ns.avgIch,ms.avgIch,' mg/kg',false],
+    ['Consistent Mills %',ns.consPct+'%',ms.consPct+'%','%',true],
+    ['Below Range %',ns.blwPct+'%',ms.blwPct+'%','%',false],
+    ['Median Prod Dev',ns.medDev+'%',ms.medDev+'%','%',true],
+  ];
+  hthRows.forEach(function(r){
+    hthHtml+='<tr><td style="font-weight:600">'+r[0]+'<\/td>'+
+      '<td>'+r[1]+'<\/td><td>'+r[2]+'<\/td>'+
+      '<td>'+delta(parseFloat(r[1]),parseFloat(r[2]),r[3],r[4])+'<\/td><\/tr>';
+  });
+  hthHtml+='<\/tbody><\/table>';
+  setHTML('hth', hthHtml);
+
+  // ── Key Insights ───────────────────────────────────────────────────────────
+  var diff=ns.winPct-ms.winPct;
+  if(ns.mills===0){
+    insHtml='<div class="insight amber"><div>'+
+      '<div class="insight-title">No Non-Monthly mills in selected period<\/div>'+
+      '<div class="insight-body">The Non-Monthly visit program started in <b>August 2025<\/b>. '+
+      'Select a period ending Aug 2025 or later to see the NM vs Monthly comparison.<\/div>'+
+      '<\/div><\/div>';
+  } else {
+    insHtml='<div class="insight '+(diff>=0?'green':'amber')+'"><div>'+
+      '<div class="insight-title">Non-Monthly mills '+(diff>=0?'outperform':'underperform')+' Monthly by '+(diff>=0?'+':'')+diff+'pp<\/div>'+
+      '<div class="insight-body">NM: <b>'+ns.winPct+'%<\/b> within range ('+ns.mills+' mills) vs Monthly: <b>'+ms.winPct+'%<\/b> ('+ms.mills+' mills). <span style="color:#888;font-size:11px">'+asOfLabel+'.<\/span><\/div>'+
+      '<\/div><\/div>';
+    insHtml+='<div class="insight blue"><div>'+
+      '<div class="insight-title">'+ns.mills+' Non-Monthly | '+ms.mills+' Monthly — '+asOfLabel+'<\/div>'+
+      '<div class="insight-body">Visit category = latest recorded status per mill in the selected period. '+
+      'Consistent mills (100% in-range): NM <b>'+ns.consPct+'%<\/b> vs Monthly <b>'+ms.consPct+'%<\/b>. '+
+      'Avg iCheck: NM <b>'+ns.avgIch+'<\/b> vs Monthly <b>'+ms.avgIch+'<\/b> mg/kg.<\/div>'+
+      '<\/div><\/div>';
+  }
+  setHTML('vc-insight', insHtml);
+
+  // ── Quality Trend chart: within-range % per month per group ───────────────
+  var mSet=new Set(); recs.forEach(function(r){mSet.add(r[F.MONTH]);});
+  var mk=Array.from(mSet).sort(function(a,b){return a-b;});
+  var nmQT=[], moQT=[];
+  mk.forEach(function(mi){
+    var nmM=ir.filter(function(r){return r[F.MONTH]===mi&&nmSet.has(r[F.MILL]);});
+    var moM=ir.filter(function(r){return r[F.MONTH]===mi&&moSet.has(r[F.MILL]);});
+    nmQT.push(nmM.length?Math.round(nmM.filter(function(r){return r[F.ICHS]===2;}).length/nmM.length*100):null);
+    moQT.push(moM.length?Math.round(moM.filter(function(r){return r[F.ICHS]===2;}).length/moM.length*100):null);
+  });
+  kc('vc-chart');
+  var vcel=document.getElementById('vc-chart');
+  if(vcel){charts['vc-chart']=new Chart(vcel.getContext('2d'),{
+    type:'line',
+    data:{labels:mk.map(function(i){return ml(D.months[i]);}),datasets:[
+      {label:'Non-Monthly',data:nmQT,borderColor:'#6c63ff',backgroundColor:'transparent',
+       tension:0.4,pointRadius:3,borderWidth:2,spanGaps:true},
+      {label:'Monthly',data:moQT,borderColor:'#22c07e',backgroundColor:'transparent',
+       tension:0.4,pointRadius:3,borderWidth:2,spanGaps:true}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:250},
+      plugins:{legend:{display:true,position:'top',labels:{boxWidth:12,font:{size:11}}},
+        tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+c.raw+'%';}}}},
+      scales:{y:{min:0,max:100,grid:{color:'rgba(0,0,0,.04)'},
+        ticks:{callback:function(v){return v+'%';}}},
+        x:{ticks:{maxTicksLimit:12,maxRotation:45,font:{size:10}},grid:{display:false}}}}
+  });}
+
+  // ── Avg Production chart: per mill per month ──────────────────────────────
+  var nmProdT=[], moProdT=[];
+  mk.forEach(function(mi){
+    var nmM=pr.filter(function(r){return r[F.MONTH]===mi&&nmSet.has(r[F.MILL]);});
+    var moM=pr.filter(function(r){return r[F.MONTH]===mi&&moSet.has(r[F.MILL]);});
+    var nmMills=new Set(nmM.map(function(r){return r[F.MILL];})).size;
+    var moMills=new Set(moM.map(function(r){return r[F.MILL];})).size;
+    var nmSum=nmM.reduce(function(s,r){return s+r[F.PROD];},0);
+    var moSum=moM.reduce(function(s,r){return s+r[F.PROD];},0);
+    nmProdT.push(nmMills?Math.round(nmSum/nmMills):null);
+    moProdT.push(moMills?Math.round(moSum/moMills):null);
+  });
+  kc('vc-prod-chart');
+  var vcpl=document.getElementById('vc-prod-chart');
+  if(vcpl){charts['vc-prod-chart']=new Chart(vcpl.getContext('2d'),{
+    type:'line',
+    data:{labels:mk.map(function(i){return ml(D.months[i]);}),datasets:[
+      {label:'Non-Monthly',data:nmProdT,borderColor:'#6c63ff',backgroundColor:'rgba(108,99,255,.08)',
+       tension:0.4,pointRadius:3,borderWidth:2,fill:true,spanGaps:true},
+      {label:'Monthly',data:moProdT,borderColor:'#22c07e',backgroundColor:'rgba(34,192,126,.06)',
+       tension:0.4,pointRadius:3,borderWidth:2,fill:true,spanGaps:true}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:250},
+      plugins:{legend:{display:true,position:'top',labels:{boxWidth:12,font:{size:11}}},
+        tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+fmt(c.raw)+' MT/mill';;}}}},
+      scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,.04)'},
+        ticks:{callback:function(v){return fmt(v)+' MT';}}},
+        x:{ticks:{maxTicksLimit:12,maxRotation:45,font:{size:10}},grid:{display:false}}}}
+  });}
+
+  // ── Reversion table (uses REVERSIONS constant, independent of filters) ────
+  renderReversionTable();
+}
+
+fetch('data.json',{cache:'no-cache'})
+  .then(function(r){
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return r.json();
+  })
+  .then(function(data){
+    EMBEDDED=data.EMBEDDED;
+    REVERSIONS=data.REVERSIONS;
+    ALL_FLAGS=data.ALL_FLAGS;
+    D=EMBEDDED;
+    var loadEl=document.getElementById('app-loading');
+    if(loadEl) loadEl.style.display='none';
+    var appEl=document.getElementById('app-root');
+    if(appEl) appEl.style.display='block';
+    initSelects();
+    applyFilters();
+  })
+  .catch(function(err){
+    console.error('Failed to load data.json:', err);
+    showDataLoadError('The data.json file could not be loaded. If you just opened this page, try refreshing. If the problem persists, the daily data file may be missing or the dashboard may need to be re-deployed.');
+  });
+
+</script>
+</body>
+</html>
