@@ -1,0 +1,45 @@
+name: Refresh Dashboard Data
+
+on:
+  schedule:
+    - cron: '30 0 * * *'   # 6:00 AM IST daily
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: refresh-dashboard
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests pandas numpy pytz
+
+      - name: Fetch data and rebuild data.json
+        env:
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+        run: python scripts/rebuild_dashboard.py
+
+      - name: Commit and push updated data.json
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add data.json
+          git commit -m "Auto-refresh data: $(date +'%d %b %Y %H:%M UTC')" || echo "No changes to commit"
+          git pull --rebase origin main || true
+          git push
