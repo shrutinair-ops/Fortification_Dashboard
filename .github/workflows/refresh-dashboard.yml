@@ -2,37 +2,46 @@ name: Refresh Dashboard Data
 
 on:
   schedule:
-    - cron: '30 0 * * *'   # 6:00 AM IST daily
+    # Runs every day at 10:00 AM IST (04:30 UTC)
+    # IST = UTC + 5:30, so 10:00 AM IST = 04:30 UTC
+    - cron: '30 4 * * *'
+  # Also runs whenever you push/commit to the main branch
   push:
     branches: [ main ]
+  # Allows manual trigger from GitHub UI (Actions tab → Run workflow)
   workflow_dispatch:
 
+# Prevents two runs from overlapping (e.g. if manual + scheduled fire at same time)
 concurrency:
   group: refresh-dashboard
   cancel-in-progress: false
 
 jobs:
   refresh:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest   # GitHub-hosted Linux machine
 
     permissions:
-      contents: write
+      contents: write   # Needed to commit data.json back to the repo
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v5
+        # Downloads the repo files onto the GitHub runner machine
 
       - name: Set up Python
-        uses: actions/setup-python@v5.6.0
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
       - name: Install dependencies
         run: pip install requests pandas numpy pytz
+        # pandas: data processing | numpy: numeric ops | pytz: timezone handling
 
       - name: Fetch data and rebuild data.json
         env:
           APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          # Reads the secret from GitHub repo Settings → Secrets → Actions
+          # Never hardcoded in code — stored securely in GitHub
         run: python scripts/rebuild_dashboard.py
 
       - name: Commit and push updated data.json
@@ -40,6 +49,9 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add data.json
+          # Always commit with timestamp so repo stays active (GitHub disables
+          # scheduled workflows after 60 days of inactivity)
           git commit -m "Auto-refresh data: $(date +'%d %b %Y %H:%M UTC')" || echo "No changes to commit"
+          # Pull before push to avoid conflicts if someone manually pushed
           git pull --rebase origin main || true
           git push
