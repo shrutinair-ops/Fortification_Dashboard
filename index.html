@@ -564,7 +564,23 @@ table.dt{width:100%;border-collapse:collapse;font-size:12.5px}
 </div>
 </div>
 <script>
+// =============================================================================
+// SECTION 1: CONFIGURATION & DATA LOADING
+// =============================================================================
+// APPS_URL: The Google Apps Script Web App URL. When called with
+// ?sheet=database&callback=FNNAME, it returns all rows from the Google Sheet
+// database tab as JSONP. This URL is also stored as a GitHub Secret
+// (APPS_SCRIPT_URL) so the Python rebuild script can use it server-side.
+// If you need to update the Apps Script, redeploy it and update both:
+//   1. This URL in index.html (used by the Refresh button)
+//   2. The APPS_SCRIPT_URL secret in GitHub repo Settings → Secrets
 const APPS_URL='https://script.google.com/macros/s/AKfycbxKOUTx7ljQz8H0DaxD_wp6hzDp-8jhfyKI0YdqXKH4gnJWNGzvZc5n57tDpPmvNa1njg/exec';
+// EMBEDDED, REVERSIONS, ALL_FLAGS are the three data objects loaded from data.json.
+// They start as null and are populated once fetch('data.json') resolves.
+// - EMBEDDED: main programme data (mill records, lookup arrays, pipeline counts)
+// - REVERSIONS: list of mills that reverted from Non-Monthly to Monthly visit
+// - ALL_FLAGS: per-mill production and iCheck summary for the flags tables
+// D is the working copy of EMBEDDED — it gets replaced when Refresh button is used.
 let EMBEDDED=null,REVERSIONS=null,ALL_FLAGS=null;
 
 function showDataLoadError(msg){
@@ -579,7 +595,18 @@ function showDataLoadError(msg){
   }
 }
 
+// =============================================================================
+// SECTION 2: DATA SCHEMA CONSTANTS
+// =============================================================================
+// F defines the field indices for each record in EMBEDDED.records.
+// Each record is a compact 18-element array (not a dict) to minimise file size.
+// Example: record[F.PROD] gives the production value for that mill-month.
+// These indices MUST match the order in rebuild_dashboard.py's records.append([...])
 const F={MONTH:0,MILL:1,STATE:2,CLUSTER:3,CAP:4,AGE:5,ICHECK:6,ICHS:7,PROD:8,PDEV:9,NM:10,RCA:11,BENE:12,AVG3M:13,QO:14,PO:15,LAUNCH_M:16,ANN_BM:17};
+// RCA_LABELS: The 6 Root Cause Analysis categories, in the same order as the
+// bit flags stored in F.RCA. To check if a record has "Equipment" RCA:
+//   record[F.RCA] & (1 << 1)  → non-zero means yes
+// This matches the rca_bits() function in rebuild_dashboard.py.
 const RCA_LABELS=['Human/Ops','Equipment','Microfeeder','Sampling','Premix','No Issue'];
 const RCA_COLORS=['#e85c5c','#5b8cff','#f5a623','#22c07e','#a78bfa','#94a3b8'];
 const ICH_MIN=14,ICH_MAX=21.25;
@@ -587,6 +614,18 @@ const AGE_LABELS=['0-6 months','6-12 months','12-24 months','24+ months'];
 let D=EMBEDDED,charts={};
 
 // ── Multi-select state ──────────────────────────────────────────────────────
+// =============================================================================
+// SECTION 3: FILTER STATE
+// =============================================================================
+// MS (Multi-Select) holds the state for all dropdown filter controls.
+// Each filter has:
+//   sel   : Set of selected values (empty Set = "all selected")
+//   items : Array of {v: value_index, l: label} options
+//   el    : DOM id of the dropdown list container
+//   box   : DOM id of the clickable box that opens the dropdown
+//   label : Display label shown in the box when nothing is selected
+// When sel is empty, getFiltered() treats it as "no filter applied" (show all).
+// The cap filter maps to mill capacity tiers (Small/Medium/Large).
 var MS={
   state:{sel:new Set(),items:[],el:'drop-state',box:'ms-state',label:'State'},
   cluster:{sel:new Set(),items:[],el:'drop-cluster',box:'ms-cluster',label:'Cluster'},
@@ -770,6 +809,19 @@ document.addEventListener('click',function(e){
   }
 });
 
+// =============================================================================
+// SECTION 4: CORE FILTER ENGINE
+// =============================================================================
+// getFiltered() is the heart of the dashboard. Every render function calls this
+// to get the subset of records matching the current filter state.
+// It applies ALL active filters simultaneously:
+//   - From/To date range (f-from, f-to dropdowns)
+//   - State, Cluster, Mill (multi-select dropdowns)
+//   - Launch Age bucket (multi-select)
+//   - Mill Capacity tier (multi-select)
+//   - NQO (Quality Officer, multi-select)
+//   - Launched By (single cutoff date — shows mills launched ON OR BEFORE this month)
+// Returns an array of records matching all active filters.
 function getFiltered(){
   var from=document.getElementById('f-from').value;
   var to=document.getElementById('f-to').value;
@@ -844,6 +896,21 @@ function loadDataViaJSONP(sheetName,callbackFn){
     });
 }
 
+// =============================================================================
+// SECTION 10: REFRESH BUTTON (LIVE DATA FETCH)
+// =============================================================================
+// The Refresh button lets users fetch the latest sheet data without waiting
+// for the next scheduled GitHub Actions run (which happens at 10 AM IST daily).
+//
+// HOW IT WORKS:
+// 1. Tries fetch() with CORS mode first (works when Apps Script access = "Anyone")
+// 2. Falls back to JSONP injection if fetch fails (older browsers / CORS issues)
+// 3. On success: calls processRaw() to convert sheet rows to dashboard format
+// 4. Re-initialises all filters and re-renders the dashboard
+// 5. On failure: shows a friendly toast message explaining the daily auto-update
+//
+// NOTE: The Refresh button fetches LIVE data directly from Google Sheets.
+//       It does NOT update data.json in GitHub. The change is session-only.
 function showToast(msg,col){
   var t=document.getElementById('refresh-toast');
   if(!t){t=document.createElement('div');t.id='refresh-toast';
@@ -871,6 +938,21 @@ function refreshData(){
   });
 }
 
+// processRaw() converts raw sheet rows (from Refresh button fetch) into
+// the same D object format that data.json provides.
+// This function MIRRORS the rebuild_dashboard.py logic exactly so that
+// clicking Refresh gives the same results as the daily GitHub Actions run.
+//
+// If you add a new field or change a calculation in rebuild_dashboard.py,
+// you MUST also update this function to match, otherwise Refresh button
+// will show different numbers than the daily auto-refresh.
+//
+// Key steps:
+// 1. Determine month range dynamically from the fetched rows
+// 2. Build all lookup arrays (states, clusters, mills, QOs, etc.)
+// 3. Compute pipeline counts from latest stage per mill
+// 4. Build the same 18-field records array as the Python script
+// 5. Return a D object with the same structure as EMBEDDED in data.json
 function processRaw(rows){
   // Mirrors rebuild_dashboard.py logic exactly
   var rca_cols=[
@@ -1039,10 +1121,36 @@ function processRaw(rows){
 }
 
 
+// =============================================================================
+// SECTION 5: APPLY FILTERS & ORCHESTRATE ALL RENDERS
+// =============================================================================
+// applyFilters() is called whenever any filter changes.
+// It calls getFiltered() once, then passes the result to all 5 tab render functions.
+// This ensures all tabs always show data for the same set of records.
+// render functions that are independent of filters (prod flags, iCheck flags,
+// reversions) are called separately with their own logic.
 function applyFilters(){var r=getFiltered();renderOverview(r);renderProduction(r);renderICheck(r);renderDrivers(r);renderVisitCat(r);}
 
 
 // ==================== PRODUCTION ACTION FLAGS (all mills, local filters) ====================
+// =============================================================================
+// SECTION 6: PRODUCTION ACTION FLAGS TABLE (Tab 1 & Tab 2)
+// =============================================================================
+// renderProdFlags() builds the Production Action Flags table.
+// This table is INDEPENDENT of the global date filter — it always shows
+// all launched mills for whatever month is selected in its own month dropdown.
+//
+// HOW IT WORKS:
+// 1. Finds all records for the selected month
+// 2. For each mill: compares current production against its annual benchmark
+//    - Annual benchmark = ANN_BM (rolling 12-month mean from rebuild script)
+//    - Falls back to AVG3M (sheet's 3-month avg) if ANN_BM is null
+// 3. Calculates % deviation = (current - benchmark) / benchmark * 100
+// 4. Assigns status:
+//    Severe Decline: deviation < -50%
+//    Declining:      deviation -50% to -20%
+//    Stable:         deviation ±20%
+//    Growing:        deviation > +20%
 function renderProdFlags(){
   // Populate month dropdown on first call (months with production data)
   var pfMonth=document.getElementById('pf-month');
@@ -1153,6 +1261,17 @@ function renderProdFlags(){
 }
 
 // ==================== iCHECK ACTION FLAGS (all mills, local filters) ====================
+// =============================================================================
+// SECTION 7: ICHECK ACTION FLAGS TABLE
+// =============================================================================
+// renderIchFlags() builds the iCheck Action Flags table.
+// INDEPENDENT of global filters — uses ALL_FLAGS which is precomputed
+// by rebuild_dashboard.py for all mills.
+//
+// Key metric: OOR STREAK = how many consecutive recent months has this mill
+// had an iCheck result outside the acceptable range (14-21.25 mg/kg)?
+// A streak of 3+ is a serious quality concern.
+// The streak is pre-calculated in rebuild_dashboard.py: persist[mc] variable.
 function renderIchFlags(){
   // Local filters (independent of global filters)
   var statusF = document.getElementById('if-status') ? document.getElementById('if-status').value : '';
@@ -1236,6 +1355,19 @@ function renderIchFlags(){
 }
 
 
+// =============================================================================
+// SECTION 8: REVERSION ANALYSIS TABLE
+// =============================================================================
+// renderReversionTable() shows mills that went from Non-Monthly → Monthly visit.
+// Uses the REVERSIONS array from data.json (precomputed by rebuild script).
+// INDEPENDENT of global filters — shows all reversion events in the dataset.
+//
+// For each reversion:
+//   - nm_start: when the mill was first moved to Non-Monthly
+//   - revert_month: when it went back to Monthly
+//   - trigger: inferred reason (OOR iCheck / production declining / surge / no signal)
+//   - pre_ich: the iCheck values in the 3 months before reversion
+//   - pre_pdev: production deviation in the 3 months before reversion
 function renderReversionTable(){
   var reasonF = document.getElementById('rv-reason') ? document.getElementById('rv-reason').value : '';
   var stateF  = document.getElementById('rv-state')  ? document.getElementById('rv-state').value  : '';
@@ -1327,9 +1459,36 @@ function renderReversionTable(){
 }
 
 
+// =============================================================================
+// SECTION 9: TAB NAVIGATION
+// =============================================================================
+// switchTab(n) switches the active tab and triggers the relevant render function.
+// Tabs: 0=Program Overview, 1=Production Trends, 2=iCheck Trends,
+//       3=iCheck Drivers, 4=Visit Category
+// Each tab's content is rendered fresh when the tab is clicked (not cached).
 function switchTab(i){document.querySelectorAll('.tab').forEach(function(t,j){t.classList.toggle('active',j===i);});document.querySelectorAll('.page').forEach(function(p,j){p.classList.toggle('active',j===i);});window.scrollTo({top:0,behavior:'smooth'});}
 
 // ==================== OVERVIEW ====================
+// =============================================================================
+// SECTION 11: TAB RENDERERS
+// =============================================================================
+// Each render function receives the filtered records array from applyFilters().
+// They compute their metrics independently and update the DOM.
+// Charts are created using Chart.js (loaded from CDN in <head>).
+// kc(id) = "kill chart" — destroys existing chart before creating a new one.
+// setHTML(id, html) = sets innerHTML safely.
+// fmt(n) = formats large numbers (e.g. 1360597 → "1.4M")
+// ml(m) = month label (e.g. "2026-05" → "May '26")
+
+// renderOverview: Program Overview tab
+// Calculates and displays:
+//   - Pipeline tiles (from D.pipeline — pre-computed, not filter-dependent)
+//   - Active mills KPI (walks back from latest month to find last month with production)
+//   - Total production (sum of all PROD in filtered records)
+//   - Peak beneficiaries (finds month with highest total beneficiaries)
+//   - iCheck range summary (counts within/below/above in filtered records)
+//   - RCA breakdown (counts each RCA bit flag in filtered iCheck records)
+//   - Visit category split (latest NM status per mill in filtered records)
 function renderOverview(recs) {
   // Pipeline tiles: always from D.pipeline (unfiltered totals)
   setHTML('ov-pipeline',
@@ -1355,12 +1514,13 @@ function renderOverview(recs) {
   var latestMIdx=mIdxArr.length?mIdxArr[mIdxArr.length-1]:-1;
   var prevMIdx=mIdxArr.length>1?mIdxArr[mIdxArr.length-2]:-1;
 
-  var activeSet=new Set();
-  pr.forEach(function(r){if(r[F.MONTH]===latestMIdx)activeSet.add(r[F.MILL]);});
-  var prevSet=new Set();
-  pr.forEach(function(r){if(r[F.MONTH]===prevMIdx)prevSet.add(r[F.MILL]);});
-  // Step back if latest month has <10% of prev (reporting lag)
-  var useIdx=(activeSet.size>0&&(prevSet.size===0||activeSet.size>=prevSet.size*0.1))?latestMIdx:prevMIdx;
+  // Find last month that actually has production data (walk back from latest)
+  var useIdx=-1;
+  for(var _mi=mIdxArr.length-1;_mi>=0;_mi--){
+    var _cnt=0;
+    pr.forEach(function(r){if(r[F.MONTH]===mIdxArr[_mi])_cnt++;});
+    if(_cnt>0){useIdx=mIdxArr[_mi];break;}
+  }
   var activeCount=0;
   pr.forEach(function(r){if(r[F.MONTH]===useIdx)activeCount++;});
   var lm=(useIdx>=0&&D.months[useIdx])?D.months[useIdx]:'';
@@ -1488,6 +1648,12 @@ function renderOverview(recs) {
 
 
 // ==================== PRODUCTION ====================
+// renderProduction: Production Trends tab
+// Charts and calculations:
+//   1. Production Volume Over Time: sum of PROD per month (line chart)
+//   2. Seasonal Pattern: MEDIAN production per mill per calendar month per year
+//      (median used instead of sum to remove the effect of growing mill count)
+//   3. Production Action Flags table (renderProdFlags — has its own month filter)
 function renderProduction(recs) {
   var pr=recs.filter(function(r){return r[F.PROD]!=null&&r[F.PROD]>0;});
 
@@ -1583,6 +1749,13 @@ function renderProduction(recs) {
 
 
 // ==================== iCHECK ====================
+// renderICheck: iCheck Trends tab
+// Charts and calculations:
+//   1. Within/Below/Above Range Over Time: % of iCheck records in each category
+//      per month (percentages so months with few mills tested are comparable)
+//   2. Average iCheck Score Over Time: mean mg/kg per month with 14-21.25 target band
+//   3. iCheck Score Distribution: counts in 4 buckets (Below 14, 14-21.25, 21.26-28, Above 28)
+//   4. iCheck Action Flags table (renderIchFlags — independent of global filters)
 function renderICheck(recs) {
   var ir = recs.filter(function(r){ return r[F.ICHECK] != null; });
 
@@ -1793,6 +1966,15 @@ function renderICheck(recs) {
 
 
 // ==================== DRIVERS ====================
+// renderDrivers: iCheck Drivers tab
+// Charts and calculations:
+//   1. RCA Breakdown: horizontal bar chart + detailed table
+//      (counts iCheck records with each RCA bit set, shows % of all and % of OOR)
+//   2. iCheck by Launch Age: % within range per age bucket + avg iCheck trendline
+//      (6 buckets: 0-2, 2-4, 4-6, 6-12, 12-24, 24+ months)
+//   3. iCheck by Mill Capacity: % within range per capacity tier (bar chart)
+//   4. Quality Officer Performance: per-QO record count, within-range %, avg iCheck
+//      (min 5 records to appear, sorted by % within range descending)
 function renderDrivers(recs) {
   var ir  = recs.filter(function(r){ return r[F.ICHECK]!=null; });
   var oor = ir.filter(function(r){ return r[F.ICHS]!==2; });
@@ -2008,6 +2190,17 @@ function renderDrivers(recs) {
 
 
 // ==================== VISIT CATEGORY ====================
+// renderVisitCat: Visit Category tab
+// Splits mills into Non-Monthly (NM) and Monthly groups based on their
+// LATEST recorded NM status in the filtered period.
+// NM program started August 2025 — records before that have NA in the column.
+// Charts and calculations:
+//   1. Summary cards: within-range %, avg iCheck, consistent mills %, below-range %,
+//      median production deviation — for NM and Monthly groups separately
+//   2. Head-to-Head table: same metrics side by side with delta vs Monthly baseline
+//   3. Quality Trend: % within range per month for NM vs Monthly (line chart)
+//   4. Avg Production: per-mill average production per month for each group
+//   5. Reversion Analysis table (renderReversionTable — independent of filters)
 function renderVisitCat(recs) {
   var ir = recs.filter(function(r){ return r[F.ICHECK]!=null; });
   var pr = recs.filter(function(r){ return r[F.PROD]!=null && r[F.PROD]>0; });
